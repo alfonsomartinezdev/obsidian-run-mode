@@ -11,6 +11,7 @@ export interface RunModeSettings {
   playersKnow: string;
   dmOnly: string;
   campaignsRoot: string;
+  trackersNote: string;
   sessionFolder: string;
   sceneFolder: string;
   lastSession: string;
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: RunModeSettings = {
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
   campaignsRoot: "Campaigns",
+  trackersNote: "Trackers",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
   lastSession: "",
@@ -73,6 +75,7 @@ export class RunModeSettingTab extends PluginSettingTab {
       "The folder that holds one folder per campaign. Leave empty if your campaign folders are at the top of your vault.",
       "campaignsRoot",
     );
+    text("Trackers note", "Name of the trackers note inside each campaign folder.", "trackersNote");
     text("New session folder", "Inside each campaign folder.", "sessionFolder");
     text("New scene folder", "Inside each campaign folder.", "sceneFolder");
 

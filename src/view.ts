@@ -16,6 +16,7 @@ import {
 } from "obsidian";
 import type RunModePlugin from "./main";
 import { CardModal } from "./card";
+import { formatValue, parseTrackers, setTrackerLine, Tracker, TRACKERS_TEMPLATE } from "./trackers";
 import { addExample, createFolder, createNote, NameModal, sceneContent, sessionContent } from "./create";
 import {
   aliasesOf,
@@ -51,14 +52,6 @@ interface RunState {
   mode: "campaigns" | "board" | "scene";
   scenePath?: string;
   filter: Filter;
-}
-
-interface Tracker {
-  name: string;
-  value: unknown;
-  max?: number;
-  index?: number; // list form
-  key?: string; // map form
 }
 
 export class RunModeView extends ItemView {
@@ -377,7 +370,7 @@ export class RunModeView extends ItemView {
         this.st.mode = "board";
         this.renderBoard(root, session);
       }
-      this.renderTrackers(root, session);
+      await this.renderTrackers(root, session);
     }
 
     if (token !== this.renderToken) {
@@ -754,37 +747,45 @@ export class RunModeView extends ItemView {
 
   // ---------- trackers ----------
 
-  private trackersOf(session: TFile): Tracker[] {
-    const raw = fmOf(this.app, session).trackers;
-    const out: Tracker[] = [];
-    if (Array.isArray(raw)) {
-      raw.forEach((t, index) => {
-        if (t && typeof t === "object" && "name" in t) {
-          const max = Number((t as any).max);
-          out.push({ name: String((t as any).name), value: (t as any).value, max: isNaN(max) ? undefined : max, index });
-        }
-      });
-    } else if (raw && typeof raw === "object") {
-      for (const [key, value] of Object.entries(raw)) out.push({ name: key, value, key });
-    }
-    return out;
+  /** Each campaign keeps its trackers in one plain note, e.g. "My Campaign/Trackers.md". */
+  private trackersPath(session: TFile): string {
+    const name = (this.plugin.settings.trackersNote || "Trackers").replace(/\.md$/i, "");
+    return joinPath(this.campaignOf(session), `${name}.md`);
   }
 
-  private setTracker(session: TFile, t: Tracker, value: unknown) {
-    this.app.fileManager.processFrontMatter(session, (fm) => {
-      if (Array.isArray(fm.trackers) && t.index !== undefined && fm.trackers[t.index]) {
-        fm.trackers[t.index].value = value;
-      } else if (fm.trackers && typeof fm.trackers === "object" && t.key !== undefined) {
-        fm.trackers[t.key] = value;
-      }
+  private async createTrackers(session: TFile) {
+    const path = this.trackersPath(session);
+    const existing = this.getFile(path);
+    const file = existing ?? (await this.app.vault.create(path, TRACKERS_TEMPLATE));
+    this.editNote(file);
+  }
+
+  private async setTracker(file: TFile, t: Tracker, value: number | boolean | string) {
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split("\n");
+      const idx = lines[t.line] === t.raw ? t.line : lines.indexOf(t.raw);
+      if (idx < 0) return data;
+      lines[idx] = setTrackerLine(lines[idx], value, t.max);
+      return lines.join("\n");
     });
   }
 
-  private renderTrackers(root: HTMLElement, session: TFile) {
-    const trackers = this.trackersOf(session);
-    if (!trackers.length) return;
+  private async renderTrackers(root: HTMLElement, session: TFile) {
     const bar = root.createDiv("rm-trackers");
+    const file = this.getFile(this.trackersPath(session));
+    if (!file) {
+      const add = bar.createEl("button", { cls: "rm-btn rm-add-trackers" });
+      setIcon(add.createSpan(), "plus");
+      add.createSpan({ text: "Add trackers" });
+      add.onclick = () => this.createTrackers(session);
+      return;
+    }
+
+    const trackers = parseTrackers(await this.app.vault.cachedRead(file));
     const row = bar.createDiv("rm-tracker-row");
+    if (!trackers.length) {
+      row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No trackers yet. Tap the pencil to add some." });
+    }
     for (const t of trackers) {
       const box = row.createDiv("rm-tracker");
       box.createSpan({ cls: "rm-tracker-name", text: t.name });
@@ -793,23 +794,26 @@ export class RunModeView extends ItemView {
         const ctl = box.createDiv("rm-tracker-ctl");
         const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
         setIcon(minus, "minus");
-        ctl.createSpan({ cls: "rm-tracker-value", text: t.max !== undefined ? `${v}/${t.max}` : String(v) });
+        ctl.createSpan({ cls: "rm-tracker-value", text: formatValue(v, t.max) });
         const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
         setIcon(plus, "plus");
         const clamp = (n: number) => (t.max !== undefined ? Math.max(0, Math.min(t.max, n)) : n);
-        minus.onclick = () => this.setTracker(session, t, clamp(v - 1));
-        plus.onclick = () => this.setTracker(session, t, clamp(v + 1));
+        minus.onclick = () => this.setTracker(file, t, clamp(v - 1));
+        plus.onclick = () => this.setTracker(file, t, clamp(v + 1));
       } else if (typeof v === "boolean") {
         const b = box.createEl("button", {
           cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
           text: v ? "Yes" : "No",
           attr: { "aria-pressed": String(v) },
         });
-        b.onclick = () => this.setTracker(session, t, !v);
+        b.onclick = () => this.setTracker(file, t, !v);
       } else {
-        box.createSpan({ cls: "rm-tracker-value", text: v === undefined || v === null ? "–" : String(v) });
+        box.createSpan({ cls: "rm-tracker-value", text: v || "–" });
       }
     }
+    const edit = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Edit trackers" } });
+    setIcon(edit, "pencil");
+    edit.onclick = () => this.editNote(file);
   }
 }
 

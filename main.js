@@ -37,6 +37,7 @@ var DEFAULT_SETTINGS = {
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
   campaignsRoot: "Campaigns",
+  trackersNote: "Trackers",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
   lastSession: "",
@@ -69,6 +70,7 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
       "The folder that holds one folder per campaign. Leave empty if your campaign folders are at the top of your vault.",
       "campaignsRoot"
     );
+    text("Trackers note", "Name of the trackers note inside each campaign folder.", "trackersNote");
     text("New session folder", "Inside each campaign folder.", "sessionFolder");
     text("New scene folder", "Inside each campaign folder.", "sceneFolder");
     new import_obsidian.Setting(containerEl).setName("Scene headings").setHeading();
@@ -277,14 +279,65 @@ var CardModal = class extends import_obsidian2.Modal {
   }
 };
 
+// src/trackers.ts
+var LINE_RE = /^(\s*[-*+]\s+)(?!\[[ xX]\])([^:]+?):\s*(.*?)\s*$/;
+var TRACKERS_TEMPLATE = [
+  "One tracker per line. A number gets \u2212 and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.",
+  "",
+  "- Reputation: 0",
+  "- Clock: 0/6",
+  "- Secret found: no",
+  ""
+].join("\n");
+function parseValue(v) {
+  const s = v.trim();
+  let m = s.match(/^([-+]?\d+)\s*\/\s*(\d+)$/);
+  if (m) return { value: Number(m[1]), max: Number(m[2]) };
+  if (/^[-+]?\d+$/.test(s)) return { value: Number(s) };
+  if (/^(yes|y|true|done|✓)$/i.test(s)) return { value: true };
+  if (/^(no|n|false|not yet)$/i.test(s)) return { value: false };
+  return { value: s };
+}
+function formatValue(value, max) {
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "number" && max !== void 0) return `${value}/${max}`;
+  return String(value);
+}
+function parseTrackers(content) {
+  var _a;
+  const lines = content.split("\n");
+  let start = 0;
+  if (((_a = lines[0]) == null ? void 0 : _a.trim()) === "---") {
+    const end = lines.findIndex((l, i) => i > 0 && l.trim() === "---");
+    if (end > 0) start = end + 1;
+  }
+  const out = [];
+  for (let i = start; i < lines.length; i++) {
+    const m = lines[i].match(LINE_RE);
+    if (!m) continue;
+    const { value, max } = parseValue(m[3]);
+    out.push({ name: m[2].trim(), value, max, line: i, raw: lines[i] });
+  }
+  return out;
+}
+function setTrackerLine(line, value, max) {
+  const m = line.match(LINE_RE);
+  if (!m) return line;
+  return `${m[1]}${m[2].trim()}: ${formatValue(value, max)}`;
+}
+
 // src/create.ts
 var import_obsidian3 = require("obsidian");
 
 // src/examples.ts
 var EXAMPLE_NOTES = [
   {
+    "path": "Run Mode Example/Trackers.md",
+    "content": "One tracker per line. A number gets \u2212 and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.\n\n- Guild rep: 3\n- Alarm: 2/6\n- Ledger found: no\n"
+  },
+  {
     "path": "Run Mode Example/Sessions/Example Session.md",
-    "content": '---\ntype: session\ncampaign: "[[A Crown of Salt]]"\nstatus: next\ntrackers:\n  - name: Guild rep\n    value: 3\n  - name: Alarm\n    value: 2\n    max: 6\n  - name: Ledger found\n    value: false\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n'
+    "content": '---\ntype: session\ncampaign: "[[A Crown of Salt]]"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n'
   },
   {
     "path": "Run Mode Example/Scenes/Ambush on Rope Street.md",
@@ -448,10 +501,6 @@ function sessionContent(sessionType) {
     "---",
     `type: ${sessionType}`,
     "status: next",
-    "trackers:",
-    "  - name: Clock",
-    "    value: 0",
-    "    max: 6",
     "---",
     ""
   ].join("\n");
@@ -778,7 +827,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
         this.st.mode = "board";
         this.renderBoard(root, session);
       }
-      this.renderTrackers(root, session);
+      await this.renderTrackers(root, session);
     }
     if (token !== this.renderToken) {
       this.removeChild(comp);
@@ -1113,35 +1162,41 @@ var RunModeView = class extends import_obsidian4.ItemView {
     }
   }
   // ---------- trackers ----------
-  trackersOf(session) {
-    const raw = fmOf(this.app, session).trackers;
-    const out = [];
-    if (Array.isArray(raw)) {
-      raw.forEach((t, index) => {
-        if (t && typeof t === "object" && "name" in t) {
-          const max = Number(t.max);
-          out.push({ name: String(t.name), value: t.value, max: isNaN(max) ? void 0 : max, index });
-        }
-      });
-    } else if (raw && typeof raw === "object") {
-      for (const [key, value] of Object.entries(raw)) out.push({ name: key, value, key });
-    }
-    return out;
+  /** Each campaign keeps its trackers in one plain note, e.g. "My Campaign/Trackers.md". */
+  trackersPath(session) {
+    const name = (this.plugin.settings.trackersNote || "Trackers").replace(/\.md$/i, "");
+    return joinPath(this.campaignOf(session), `${name}.md`);
   }
-  setTracker(session, t, value) {
-    this.app.fileManager.processFrontMatter(session, (fm) => {
-      if (Array.isArray(fm.trackers) && t.index !== void 0 && fm.trackers[t.index]) {
-        fm.trackers[t.index].value = value;
-      } else if (fm.trackers && typeof fm.trackers === "object" && t.key !== void 0) {
-        fm.trackers[t.key] = value;
-      }
+  async createTrackers(session) {
+    const path = this.trackersPath(session);
+    const existing = this.getFile(path);
+    const file = existing != null ? existing : await this.app.vault.create(path, TRACKERS_TEMPLATE);
+    this.editNote(file);
+  }
+  async setTracker(file, t, value) {
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split("\n");
+      const idx = lines[t.line] === t.raw ? t.line : lines.indexOf(t.raw);
+      if (idx < 0) return data;
+      lines[idx] = setTrackerLine(lines[idx], value, t.max);
+      return lines.join("\n");
     });
   }
-  renderTrackers(root, session) {
-    const trackers = this.trackersOf(session);
-    if (!trackers.length) return;
+  async renderTrackers(root, session) {
     const bar = root.createDiv("rm-trackers");
+    const file = this.getFile(this.trackersPath(session));
+    if (!file) {
+      const add = bar.createEl("button", { cls: "rm-btn rm-add-trackers" });
+      (0, import_obsidian4.setIcon)(add.createSpan(), "plus");
+      add.createSpan({ text: "Add trackers" });
+      add.onclick = () => this.createTrackers(session);
+      return;
+    }
+    const trackers = parseTrackers(await this.app.vault.cachedRead(file));
     const row = bar.createDiv("rm-tracker-row");
+    if (!trackers.length) {
+      row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No trackers yet. Tap the pencil to add some." });
+    }
     for (const t of trackers) {
       const box = row.createDiv("rm-tracker");
       box.createSpan({ cls: "rm-tracker-name", text: t.name });
@@ -1150,23 +1205,26 @@ var RunModeView = class extends import_obsidian4.ItemView {
         const ctl = box.createDiv("rm-tracker-ctl");
         const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
         (0, import_obsidian4.setIcon)(minus, "minus");
-        ctl.createSpan({ cls: "rm-tracker-value", text: t.max !== void 0 ? `${v}/${t.max}` : String(v) });
+        ctl.createSpan({ cls: "rm-tracker-value", text: formatValue(v, t.max) });
         const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
         (0, import_obsidian4.setIcon)(plus, "plus");
         const clamp = (n) => t.max !== void 0 ? Math.max(0, Math.min(t.max, n)) : n;
-        minus.onclick = () => this.setTracker(session, t, clamp(v - 1));
-        plus.onclick = () => this.setTracker(session, t, clamp(v + 1));
+        minus.onclick = () => this.setTracker(file, t, clamp(v - 1));
+        plus.onclick = () => this.setTracker(file, t, clamp(v + 1));
       } else if (typeof v === "boolean") {
         const b = box.createEl("button", {
           cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
           text: v ? "Yes" : "No",
           attr: { "aria-pressed": String(v) }
         });
-        b.onclick = () => this.setTracker(session, t, !v);
+        b.onclick = () => this.setTracker(file, t, !v);
       } else {
-        box.createSpan({ cls: "rm-tracker-value", text: v === void 0 || v === null ? "\u2013" : String(v) });
+        box.createSpan({ cls: "rm-tracker-value", text: v || "\u2013" });
       }
     }
+    const edit = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Edit trackers" } });
+    (0, import_obsidian4.setIcon)(edit, "pencil");
+    edit.onclick = () => this.editNote(file);
   }
 };
 var SessionSuggest = class extends import_obsidian4.SuggestModal {

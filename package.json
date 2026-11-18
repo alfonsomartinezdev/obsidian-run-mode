@@ -1,6 +1,6 @@
 {
   "name": "obsidian-run-mode",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Phone-friendly scene board for running tabletop RPG sessions from Obsidian notes",
   "main": "main.js",
   "scripts": {

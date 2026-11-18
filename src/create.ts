@@ -75,10 +75,6 @@ export function sessionContent(sessionType: string): string {
     "---",
     `type: ${sessionType}`,
     "status: next",
-    "trackers:",
-    "  - name: Clock",
-    "    value: 0",
-    "    max: 6",
     "---",
     "",
   ].join("\n");

@@ -527,3 +527,23 @@
 .rm-section-label {
   margin-top: 12px;
 }
+.rm-tracker-edit {
+  flex: none;
+  width: 44px;
+  align-self: stretch;
+  height: auto !important;
+  padding: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rm-tracker-empty {
+  align-self: center;
+  flex: 1;
+  margin: 0;
+}
+.rm-view .rm-add-trackers {
+  width: 100%;
+  min-height: 44px;
+}

@@ -34,17 +34,21 @@ Run mode looks at each note's **properties** (the block at the top) and **headin
 
 ```yaml
 type: session
-campaign: "[[A Crown of Salt]]"
 status: next          # the session marked "next" opens by default
-trackers:
-  - name: Guild rep
-    value: 3          # numbers get − and + buttons
-  - name: Alarm
-    value: 2
-    max: 6            # optional cap, shown as 2/6
-  - name: Ledger found
-    value: false      # true/false becomes a Yes/No toggle
 ```
+
+### Trackers note
+
+Each campaign has a note called `Trackers` (tap **Add trackers** in Run mode to create it). One tracker per line:
+
+```
+- Guild rep: 3        # − and + buttons
+- Alarm: 2/6          # stops at the cap
+- Ledger found: no    # yes/no toggle
+- Weather: storm      # shown as text
+```
+
+Edit it like any note. The pencil on the trackers bar opens it.
 
 ### Scene note
 

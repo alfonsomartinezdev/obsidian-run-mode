@@ -1,8 +1,12 @@
 // Example notes created by the "Add example campaign" button.
 export const EXAMPLE_NOTES: { path: string; content: string }[] = [
   {
+    "path": "Run Mode Example/Trackers.md",
+    "content": "One tracker per line. A number gets − and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.\n\n- Guild rep: 3\n- Alarm: 2/6\n- Ledger found: no\n"
+  },
+  {
     "path": "Run Mode Example/Sessions/Example Session.md",
-    "content": "---\ntype: session\ncampaign: \"[[A Crown of Salt]]\"\nstatus: next\ntrackers:\n  - name: Guild rep\n    value: 3\n  - name: Alarm\n    value: 2\n    max: 6\n  - name: Ledger found\n    value: false\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n"
+    "content": "---\ntype: session\ncampaign: \"[[A Crown of Salt]]\"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n"
   },
   {
     "path": "Run Mode Example/Scenes/Ambush on Rope Street.md",
