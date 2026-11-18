@@ -5,6 +5,7 @@ import {
   ItemView,
   MarkdownRenderer,
   Notice,
+  Platform,
   prepareFuzzySearch,
   setIcon,
   SuggestModal,
@@ -104,6 +105,7 @@ export class RunModeView extends ItemView {
     this.registerEvent(this.app.vault.on("rename", () => this.schedule()));
     this.registerEvent(this.app.vault.on("delete", () => this.schedule()));
     this.registerDomEvent(this.contentEl, "click", (e) => this.onLinkClick(e), true);
+    this.registerDomEvent(window, "resize", () => this.fitAboveToolbar());
     await this.render();
   }
 
@@ -388,6 +390,34 @@ export class RunModeView extends ItemView {
     this.contentEl.appendChild(root);
     const scroll = root.querySelector(".rm-scroll");
     if (scroll && !resetScroll) scroll.scrollTop = oldScroll;
+    this.fitAboveToolbar();
+  }
+
+  /**
+   * On phones, Obsidian's floating toolbar overlaps the bottom of the view.
+   * Measure how much it covers and pad the view so the trackers sit above it.
+   */
+  private fitAboveToolbar() {
+    if (!Platform.isMobile) return;
+    window.requestAnimationFrame(() => {
+      const view = this.contentEl.querySelector<HTMLElement>(".rm-view");
+      if (!view) return;
+      const bottom = this.contentEl.getBoundingClientRect().bottom;
+      let covered = 0;
+      let found = false;
+      for (const sel of [".mobile-navbar", ".mobile-toolbar"]) {
+        document.querySelectorAll<HTMLElement>(sel).forEach((bar) => {
+          found = true;
+          const r = bar.getBoundingClientRect();
+          if (r.height > 0 && r.top < bottom && getComputedStyle(bar).display !== "none") {
+            covered = Math.max(covered, bottom - r.top);
+          }
+        });
+      }
+      // If this Obsidian version names its toolbar differently, leave a safe gap on phones.
+      if (!found && Platform.isPhone) covered = 80;
+      view.style.paddingBottom = covered > 0 ? `${Math.ceil(covered) + 8}px` : "";
+    });
   }
 
   private backToCampaigns(head: HTMLElement) {
