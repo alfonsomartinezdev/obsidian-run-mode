@@ -10,9 +10,11 @@ export interface RunModeSettings {
   leads: string;
   playersKnow: string;
   dmOnly: string;
+  campaignsRoot: string;
   sessionFolder: string;
   sceneFolder: string;
   lastSession: string;
+  lastCampaign: string | null;
 }
 
 export const DEFAULT_SETTINGS: RunModeSettings = {
@@ -24,9 +26,11 @@ export const DEFAULT_SETTINGS: RunModeSettings = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
+  campaignsRoot: "",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
   lastSession: "",
+  lastCampaign: null,
 };
 
 export class RunModeSettingTab extends PluginSettingTab {
@@ -47,7 +51,7 @@ export class RunModeSettingTab extends PluginSettingTab {
         "and reads sections by their heading. Headings accept several names, separated by commas.",
     });
 
-    const text = (name: string, desc: string, key: keyof RunModeSettings) =>
+    const text = (name: string, desc: string, key: Exclude<keyof RunModeSettings, "lastCampaign">) =>
       new Setting(containerEl)
         .setName(name)
         .setDesc(desc)
@@ -61,8 +65,14 @@ export class RunModeSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Note types").setHeading();
     text("Scene type", "Value of `type` on scene notes.", "sceneType");
     text("Session type", "Value of `type` on session notes.", "sessionType");
-    text("New session folder", "Where the New session button puts notes.", "sessionFolder");
-    text("New scene folder", "Where the New scene button puts notes.", "sceneFolder");
+    new Setting(containerEl).setName("Campaigns").setHeading();
+    text(
+      "Campaigns folder",
+      "The folder that holds one folder per campaign. Leave empty if your campaign folders are at the top of your vault.",
+      "campaignsRoot",
+    );
+    text("New session folder", "Inside each campaign folder.", "sessionFolder");
+    text("New scene folder", "Inside each campaign folder.", "sceneFolder");
 
     new Setting(containerEl).setName("Scene headings").setHeading();
     text("Read aloud", "Shown first, in a highlighted box.", "readAloud");

@@ -96,10 +96,11 @@ export function sceneContent(sceneType: string, sessionName: string): string {
 }
 
 /** Adds the example campaign under "Run Mode Example/". Returns the session note. */
-export async function addExample(app: App): Promise<TFile | null> {
+export async function addExample(app: App, root: string): Promise<TFile | null> {
   let session: TFile | null = null;
   let skipped = 0;
-  for (const n of EXAMPLE_NOTES) {
+  for (const note of EXAMPLE_NOTES) {
+    const n = { ...note, path: normalizePath(root ? `${root}/${note.path}` : note.path) };
     const existing = app.vault.getAbstractFileByPath(n.path);
     if (existing instanceof TFile) {
       skipped++;

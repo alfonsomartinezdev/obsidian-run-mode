@@ -1,7 +1,7 @@
 {
   "id": "run-mode",
   "name": "Run Mode",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "minAppVersion": "1.4.0",
   "description": "A phone-friendly scene board for running tabletop RPG sessions from your notes.",
   "author": "You",

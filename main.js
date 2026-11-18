@@ -36,9 +36,11 @@ var DEFAULT_SETTINGS = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
+  campaignsRoot: "",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
-  lastSession: ""
+  lastSession: "",
+  lastCampaign: null
 };
 var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -60,8 +62,14 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Note types").setHeading();
     text("Scene type", "Value of `type` on scene notes.", "sceneType");
     text("Session type", "Value of `type` on session notes.", "sessionType");
-    text("New session folder", "Where the New session button puts notes.", "sessionFolder");
-    text("New scene folder", "Where the New scene button puts notes.", "sceneFolder");
+    new import_obsidian.Setting(containerEl).setName("Campaigns").setHeading();
+    text(
+      "Campaigns folder",
+      "The folder that holds one folder per campaign. Leave empty if your campaign folders are at the top of your vault.",
+      "campaignsRoot"
+    );
+    text("New session folder", "Inside each campaign folder.", "sessionFolder");
+    text("New scene folder", "Inside each campaign folder.", "sceneFolder");
     new import_obsidian.Setting(containerEl).setName("Scene headings").setHeading();
     text("Read aloud", "Shown first, in a highlighted box.", "readAloud");
     text("Who's here", "Each linked name becomes a tappable chip.", "whoHere");
@@ -459,10 +467,11 @@ function sceneContent(sceneType, sessionName) {
     ""
   ].join("\n");
 }
-async function addExample(app) {
+async function addExample(app, root) {
   let session = null;
   let skipped = 0;
-  for (const n of EXAMPLE_NOTES) {
+  for (const note of EXAMPLE_NOTES) {
+    const n = { ...note, path: (0, import_obsidian3.normalizePath)(root ? `${root}/${note.path}` : note.path) };
     const existing = app.vault.getAbstractFileByPath(n.path);
     if (existing instanceof import_obsidian3.TFile) {
       skipped++;
@@ -481,6 +490,9 @@ async function addExample(app) {
 
 // src/view.ts
 var VIEW_TYPE = "run-mode-view";
+function joinPath(...parts) {
+  return parts.map((p) => p.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean).join("/");
+}
 var RunModeView = class extends import_obsidian4.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -513,6 +525,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
   }
   async setState(state, result) {
     if (state && typeof state === "object") {
+      if (typeof state.campaignPath === "string") this.st.campaignPath = state.campaignPath;
       if (typeof state.sessionPath === "string") this.st.sessionPath = state.sessionPath;
       if (state.mode === "board" || state.mode === "scene") this.st.mode = state.mode;
       if (typeof state.scenePath === "string") this.st.scenePath = state.scenePath;
@@ -568,7 +581,23 @@ var RunModeView = class extends import_obsidian4.ItemView {
     this.app.workspace.requestSaveLayout();
     this.render(true);
   }
+  toCampaigns() {
+    this.st.mode = "campaigns";
+    this.app.workspace.requestSaveLayout();
+    this.render(true);
+  }
+  chooseCampaign(path) {
+    this.st.campaignPath = path;
+    this.plugin.settings.lastCampaign = path;
+    void this.plugin.saveSettings();
+    this.st.sessionPath = void 0;
+    this.st.mode = "board";
+    this.app.workspace.requestSaveLayout();
+    this.render(true);
+  }
   async chooseSession(file) {
+    this.st.campaignPath = this.campaignOf(file);
+    this.plugin.settings.lastCampaign = this.st.campaignPath;
     this.st.sessionPath = file.path;
     this.st.mode = "board";
     this.plugin.settings.lastSession = file.path;
@@ -577,41 +606,79 @@ var RunModeView = class extends import_obsidian4.ItemView {
     this.render(true);
   }
   // ---------- creating notes ----------
-  newSession() {
+  newSession(campaign) {
     new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
       const s = this.plugin.settings;
-      const f = await createNote(this.app, s.sessionFolder, name, sessionContent(s.sessionType));
+      const folder = joinPath(campaign, s.sessionFolder);
+      const f = await createNote(this.app, folder, name, sessionContent(s.sessionType));
       await this.chooseSession(f);
     }).open();
   }
   newScene(session) {
     new NameModal(this.app, "New scene", "e.g. The Tannery", async (name) => {
       const s = this.plugin.settings;
-      const f = await createNote(this.app, s.sceneFolder, name, sceneContent(s.sceneType, session.basename));
+      const folder = joinPath(this.campaignOf(session), s.sceneFolder);
+      const f = await createNote(this.app, folder, name, sceneContent(s.sceneType, session.basename));
       new import_obsidian4.Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
       this.app.workspace.getLeaf("tab").openFile(f);
     }).open();
   }
   async addExampleCampaign() {
-    const f = await addExample(this.app);
+    const f = await addExample(this.app, this.campaignsRoot());
     if (f) window.setTimeout(() => this.chooseSession(f), 300);
   }
   editNote(file) {
     this.app.workspace.getLeaf("tab").openFile(file);
   }
-  sessions() {
-    const t = this.plugin.settings.sessionType;
-    return this.app.vault.getMarkdownFiles().filter((f) => noteType(this.app, f) === t).sort(this.byOrder);
+  campaignsRoot() {
+    return this.plugin.settings.campaignsRoot.trim().replace(/^\/+|\/+$/g, "");
   }
-  currentSession() {
+  /** The campaign folder a note lives in, or "" if it isn't inside one. */
+  campaignOf(file) {
+    const root = this.campaignsRoot();
+    if (root && !file.path.startsWith(root + "/")) return "";
+    const parts = (root ? file.path.slice(root.length + 1) : file.path).split("/");
+    if (parts.length < 2) return "";
+    return joinPath(root, parts[0]);
+  }
+  campaignName(path) {
+    return path ? path.split("/").pop() : "Not in a campaign folder";
+  }
+  campaignFolders() {
+    const root = this.campaignsRoot();
+    const base = root ? this.app.vault.getAbstractFileByPath(root) : this.app.vault.getRoot();
+    if (!(base instanceof import_obsidian4.TFolder)) return [];
+    return base.children.filter((c) => c instanceof import_obsidian4.TFolder && !c.name.startsWith(".")).sort((a, b) => a.name.localeCompare(b.name, void 0, { numeric: true }));
+  }
+  getFile(p) {
+    const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
+    return f instanceof import_obsidian4.TFile ? f : null;
+  }
+  /** All session notes, or only those in one campaign. */
+  sessions(campaign) {
+    const t = this.plugin.settings.sessionType;
+    return this.app.vault.getMarkdownFiles().filter((f) => noteType(this.app, f) === t && (campaign === void 0 || this.campaignOf(f) === campaign)).sort(this.byOrder);
+  }
+  sessionsHere() {
+    return this.sessions(this.st.campaignPath);
+  }
+  currentCampaign() {
+    if (this.st.campaignPath !== void 0) return this.st.campaignPath;
+    const remembered = this.plugin.settings.lastCampaign;
+    if (remembered !== null && (remembered === "" || this.app.vault.getAbstractFileByPath(remembered) instanceof import_obsidian4.TFolder)) {
+      return remembered;
+    }
+    const last = this.getFile(this.plugin.settings.lastSession);
+    if (last) return this.campaignOf(last);
+    const found = [...new Set(this.sessions().map((f) => this.campaignOf(f)))];
+    return found.length === 1 ? found[0] : null;
+  }
+  currentSession(campaign) {
     var _a, _b;
-    const get = (p) => {
-      const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
-      return f instanceof import_obsidian4.TFile ? f : null;
-    };
-    const chosen = (_a = get(this.st.sessionPath)) != null ? _a : get(this.plugin.settings.lastSession);
+    const here = (f) => f && this.campaignOf(f) === campaign ? f : null;
+    const chosen = (_a = here(this.getFile(this.st.sessionPath))) != null ? _a : here(this.getFile(this.plugin.settings.lastSession));
     if (chosen) return chosen;
-    const all = this.sessions();
+    const all = this.sessions(campaign);
     const next = all.find(
       (f) => {
         var _a2;
@@ -662,11 +729,21 @@ var RunModeView = class extends import_obsidian4.ItemView {
     this.addChild(comp);
     const root = createDiv({ cls: "rm-view" });
     const oldScroll = (_b = (_a = this.contentEl.querySelector(".rm-scroll")) == null ? void 0 : _a.scrollTop) != null ? _b : 0;
-    const session = this.currentSession();
-    if (!session) {
-      this.renderNoSession(root);
+    const campaign = this.st.mode === "campaigns" ? null : this.currentCampaign();
+    const session = campaign === null ? null : this.currentSession(campaign);
+    if (campaign === null) {
+      this.st.mode = "campaigns";
+      this.renderCampaigns(root);
+    } else if (!session) {
+      this.st.campaignPath = campaign;
+      this.renderNoSession(root, campaign);
     } else {
+      this.st.campaignPath = campaign;
       this.st.sessionPath = session.path;
+      if (this.plugin.settings.lastSession !== session.path) {
+        this.plugin.settings.lastSession = session.path;
+        void this.plugin.saveSettings();
+      }
       const sceneFile = this.st.mode === "scene" && this.st.scenePath ? this.app.vault.getAbstractFileByPath(this.st.scenePath) : null;
       if (sceneFile instanceof import_obsidian4.TFile) await this.renderScene(root, comp, session, sceneFile);
       else {
@@ -686,25 +763,71 @@ var RunModeView = class extends import_obsidian4.ItemView {
     const scroll = root.querySelector(".rm-scroll");
     if (scroll && !resetScroll) scroll.scrollTop = oldScroll;
   }
-  renderNoSession(root) {
-    const box = root.createDiv("rm-empty-state");
-    box.createEl("h2", { text: "No sessions yet" });
-    box.createEl("p", {
-      text: "Create your first session, or add a small example campaign to see how it works."
+  backToCampaigns(head) {
+    const back = head.createEl("button", { cls: "rm-back" });
+    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
+    back.createSpan({ text: "Campaigns" });
+    back.onclick = () => this.toCampaigns();
+  }
+  renderCampaigns(root) {
+    var _a;
+    const head = root.createDiv("rm-head");
+    head.createEl("h1", { cls: "rm-title", text: "Campaigns" });
+    const counts = /* @__PURE__ */ new Map();
+    for (const f of this.sessions()) {
+      const c = this.campaignOf(f);
+      counts.set(c, ((_a = counts.get(c)) != null ? _a : 0) + 1);
+    }
+    const folders = this.campaignFolders();
+    const active = folders.filter((f) => counts.has(f.path));
+    const others = folders.filter((f) => !counts.has(f.path));
+    const scroll = root.createDiv("rm-scroll");
+    const list = scroll.createDiv("rm-cards");
+    const card = (path, sub, dim = false) => {
+      const b = list.createEl("button", { cls: "rm-scene-card" + (dim ? " is-visited" : "") });
+      b.createDiv({ cls: "rm-scene-name", text: this.campaignName(path) });
+      b.createDiv({ cls: "rm-scene-meta", text: sub });
+      b.onclick = () => this.chooseCampaign(path);
+    };
+    const plural = (n) => `${n} session${n === 1 ? "" : "s"}`;
+    for (const f of active) card(f.path, plural(counts.get(f.path)));
+    if (counts.has("")) card("", plural(counts.get("")));
+    if (!active.length && !counts.has("")) {
+      list.createEl("p", { cls: "rm-empty", text: "No sessions yet. Pick a campaign folder below to start one." });
+    }
+    if (others.length) {
+      list.createSpan({ cls: "rm-label rm-section-label", text: "Other folders \xB7 tap to start a campaign" });
+      for (const f of others) card(f.path, "No sessions yet", true);
+    }
+    const add = scroll.createDiv("rm-add-row");
+    const example = add.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
+    example.onclick = () => this.addExampleCampaign();
+    add.createEl("p", {
+      cls: "rm-empty",
+      text: "Campaign folders kept inside another folder? Set it under Settings \u2192 Run Mode \u2192 Campaigns folder."
     });
+  }
+  renderNoSession(root, campaign) {
+    const head = root.createDiv("rm-head");
+    this.backToCampaigns(head);
+    head.createEl("h1", { cls: "rm-title", text: this.campaignName(campaign) });
+    const box = root.createDiv("rm-empty-state");
+    box.createEl("p", { text: "No sessions in this campaign yet." });
     const actions = box.createDiv("rm-empty-actions");
     const create = actions.createEl("button", { cls: "rm-btn mod-cta", text: "Create a session" });
-    create.onclick = () => this.newSession();
-    const example = actions.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
-    example.onclick = () => this.addExampleCampaign();
+    create.onclick = () => this.newSession(campaign);
   }
   renderBoard(root, session) {
-    var _a;
+    var _a, _b;
     const fm = fmOf(this.app, session);
     const head = root.createDiv("rm-head");
+    const campaign = this.campaignOf(session);
+    const back = head.createEl("button", { cls: "rm-back" });
+    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
+    back.createSpan({ text: campaign ? this.campaignName(campaign) : linkLabel((_a = fm.campaign) != null ? _a : "Campaigns") });
+    back.onclick = () => this.toCampaigns();
     const row = head.createDiv("rm-title-row");
     const col = row.createDiv("rm-title-col");
-    if (fm.campaign) col.createSpan({ cls: "rm-kicker", text: linkLabel(fm.campaign) });
     col.createEl("h1", { cls: "rm-title", text: displayName(this.app, session) });
     const sw = row.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Switch session" } });
     (0, import_obsidian4.setIcon)(sw, "list");
@@ -741,7 +864,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
       top.createSpan({ cls: `rm-pill is-${status}`, text: STATUSES.find((s) => s.id === status).label });
       if (status !== "visited" && sfm.hook) card.createDiv({ cls: "rm-scene-hook", text: String(sfm.hook) });
       const meta = [];
-      const place = (_a = sfm.place) != null ? _a : sfm.location;
+      const place = (_b = sfm.place) != null ? _b : sfm.location;
       if (place) meta.push(linkLabel(place));
       const leads = asList(sfm.leads).length;
       if (leads) meta.push(`leads to ${leads}`);
@@ -754,7 +877,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
     newScene.createSpan({ text: "New scene" });
     newScene.onclick = () => this.newScene(session);
     const newSession = add.createEl("button", { cls: "rm-btn", text: "New session" });
-    newSession.onclick = () => this.newSession();
+    newSession.onclick = () => this.newSession(campaign);
   }
   renderSearch(head) {
     const wrap = head.createDiv("rm-search");
@@ -994,7 +1117,7 @@ var SessionSuggest = class extends import_obsidian4.SuggestModal {
     this.setPlaceholder("Pick a session");
   }
   getSuggestions(query) {
-    const all = this.view.sessions().reverse();
+    const all = this.view.sessionsHere().reverse();
     const q = query.trim();
     if (!q) return all;
     const match = (0, import_obsidian4.prepareFuzzySearch)(q);

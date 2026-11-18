@@ -9,6 +9,7 @@ import {
   setIcon,
   SuggestModal,
   TFile,
+  TFolder,
   ViewStateResult,
   WorkspaceLeaf,
 } from "obsidian";
@@ -37,11 +38,16 @@ import {
 
 export const VIEW_TYPE = "run-mode-view";
 
+function joinPath(...parts: string[]): string {
+  return parts.map((p) => p.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean).join("/");
+}
+
 type Filter = "all" | SceneStatus;
 
 interface RunState {
+  campaignPath?: string; // "" = notes not inside a campaign folder
   sessionPath?: string;
-  mode: "board" | "scene";
+  mode: "campaigns" | "board" | "scene";
   scenePath?: string;
   filter: Filter;
 }
@@ -82,6 +88,7 @@ export class RunModeView extends ItemView {
 
   async setState(state: any, result: ViewStateResult) {
     if (state && typeof state === "object") {
+      if (typeof state.campaignPath === "string") this.st.campaignPath = state.campaignPath;
       if (typeof state.sessionPath === "string") this.st.sessionPath = state.sessionPath;
       if (state.mode === "board" || state.mode === "scene") this.st.mode = state.mode;
       if (typeof state.scenePath === "string") this.st.scenePath = state.scenePath;
@@ -144,7 +151,25 @@ export class RunModeView extends ItemView {
     this.render(true);
   }
 
+  private toCampaigns() {
+    this.st.mode = "campaigns";
+    this.app.workspace.requestSaveLayout();
+    this.render(true);
+  }
+
+  private chooseCampaign(path: string) {
+    this.st.campaignPath = path;
+    this.plugin.settings.lastCampaign = path;
+    void this.plugin.saveSettings();
+    this.st.sessionPath = undefined;
+    this.st.mode = "board";
+    this.app.workspace.requestSaveLayout();
+    this.render(true);
+  }
+
   async chooseSession(file: TFile) {
+    this.st.campaignPath = this.campaignOf(file);
+    this.plugin.settings.lastCampaign = this.st.campaignPath;
     this.st.sessionPath = file.path;
     this.st.mode = "board";
     this.plugin.settings.lastSession = file.path;
@@ -155,10 +180,11 @@ export class RunModeView extends ItemView {
 
   // ---------- creating notes ----------
 
-  private newSession() {
+  private newSession(campaign: string) {
     new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
       const s = this.plugin.settings;
-      const f = await createNote(this.app, s.sessionFolder, name, sessionContent(s.sessionType));
+      const folder = joinPath(campaign, s.sessionFolder);
+      const f = await createNote(this.app, folder, name, sessionContent(s.sessionType));
       await this.chooseSession(f);
     }).open();
   }
@@ -166,14 +192,15 @@ export class RunModeView extends ItemView {
   private newScene(session: TFile) {
     new NameModal(this.app, "New scene", "e.g. The Tannery", async (name) => {
       const s = this.plugin.settings;
-      const f = await createNote(this.app, s.sceneFolder, name, sceneContent(s.sceneType, session.basename));
+      const folder = joinPath(this.campaignOf(session), s.sceneFolder);
+      const f = await createNote(this.app, folder, name, sceneContent(s.sceneType, session.basename));
       new Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
       this.app.workspace.getLeaf("tab").openFile(f);
     }).open();
   }
 
   private async addExampleCampaign() {
-    const f = await addExample(this.app);
+    const f = await addExample(this.app, this.campaignsRoot());
     if (f) window.setTimeout(() => this.chooseSession(f), 300);
   }
 
@@ -190,22 +217,67 @@ export class RunModeView extends ItemView {
     return a.basename.localeCompare(b.basename, undefined, { numeric: true });
   };
 
-  sessions(): TFile[] {
+  private campaignsRoot(): string {
+    return this.plugin.settings.campaignsRoot.trim().replace(/^\/+|\/+$/g, "");
+  }
+
+  /** The campaign folder a note lives in, or "" if it isn't inside one. */
+  campaignOf(file: TFile): string {
+    const root = this.campaignsRoot();
+    if (root && !file.path.startsWith(root + "/")) return "";
+    const parts = (root ? file.path.slice(root.length + 1) : file.path).split("/");
+    if (parts.length < 2) return "";
+    return joinPath(root, parts[0]);
+  }
+
+  private campaignName(path: string): string {
+    return path ? path.split("/").pop()! : "Not in a campaign folder";
+  }
+
+  private campaignFolders(): TFolder[] {
+    const root = this.campaignsRoot();
+    const base = root ? this.app.vault.getAbstractFileByPath(root) : this.app.vault.getRoot();
+    if (!(base instanceof TFolder)) return [];
+    return base.children
+      .filter((c): c is TFolder => c instanceof TFolder && !c.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }
+
+  private getFile(p?: string): TFile | null {
+    const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
+    return f instanceof TFile ? f : null;
+  }
+
+  /** All session notes, or only those in one campaign. */
+  sessions(campaign?: string): TFile[] {
     const t = this.plugin.settings.sessionType;
     return this.app.vault
       .getMarkdownFiles()
-      .filter((f) => noteType(this.app, f) === t)
+      .filter((f) => noteType(this.app, f) === t && (campaign === undefined || this.campaignOf(f) === campaign))
       .sort(this.byOrder);
   }
 
-  private currentSession(): TFile | null {
-    const get = (p?: string) => {
-      const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
-      return f instanceof TFile ? f : null;
-    };
-    const chosen = get(this.st.sessionPath) ?? get(this.plugin.settings.lastSession);
+  sessionsHere(): TFile[] {
+    return this.sessions(this.st.campaignPath);
+  }
+
+  private currentCampaign(): string | null {
+    if (this.st.campaignPath !== undefined) return this.st.campaignPath;
+    const remembered = this.plugin.settings.lastCampaign;
+    if (remembered !== null && (remembered === "" || this.app.vault.getAbstractFileByPath(remembered) instanceof TFolder)) {
+      return remembered;
+    }
+    const last = this.getFile(this.plugin.settings.lastSession);
+    if (last) return this.campaignOf(last);
+    const found = [...new Set(this.sessions().map((f) => this.campaignOf(f)))];
+    return found.length === 1 ? found[0] : null;
+  }
+
+  private currentSession(campaign: string): TFile | null {
+    const here = (f: TFile | null) => (f && this.campaignOf(f) === campaign ? f : null);
+    const chosen = here(this.getFile(this.st.sessionPath)) ?? here(this.getFile(this.plugin.settings.lastSession));
     if (chosen) return chosen;
-    const all = this.sessions();
+    const all = this.sessions(campaign);
     const next = all.find((f) =>
       ["next", "current", "in-play", "playing", "now"].includes(
         String(fmOf(this.app, f).status ?? "").toLowerCase().trim().replace(/\s+/g, "-"),
@@ -261,11 +333,21 @@ export class RunModeView extends ItemView {
 
     const oldScroll = this.contentEl.querySelector(".rm-scroll")?.scrollTop ?? 0;
 
-    const session = this.currentSession();
-    if (!session) {
-      this.renderNoSession(root);
+    const campaign = this.st.mode === "campaigns" ? null : this.currentCampaign();
+    const session = campaign === null ? null : this.currentSession(campaign);
+    if (campaign === null) {
+      this.st.mode = "campaigns";
+      this.renderCampaigns(root);
+    } else if (!session) {
+      this.st.campaignPath = campaign;
+      this.renderNoSession(root, campaign);
     } else {
+      this.st.campaignPath = campaign;
       this.st.sessionPath = session.path;
+      if (this.plugin.settings.lastSession !== session.path) {
+        this.plugin.settings.lastSession = session.path;
+        void this.plugin.saveSettings();
+      }
       const sceneFile =
         this.st.mode === "scene" && this.st.scenePath
           ? this.app.vault.getAbstractFileByPath(this.st.scenePath)
@@ -290,26 +372,78 @@ export class RunModeView extends ItemView {
     if (scroll && !resetScroll) scroll.scrollTop = oldScroll;
   }
 
-  private renderNoSession(root: HTMLElement) {
-    const box = root.createDiv("rm-empty-state");
-    box.createEl("h2", { text: "No sessions yet" });
-    box.createEl("p", {
-      text: "Create your first session, or add a small example campaign to see how it works.",
+  private backToCampaigns(head: HTMLElement) {
+    const back = head.createEl("button", { cls: "rm-back" });
+    setIcon(back.createSpan(), "chevron-left");
+    back.createSpan({ text: "Campaigns" });
+    back.onclick = () => this.toCampaigns();
+  }
+
+  private renderCampaigns(root: HTMLElement) {
+    const head = root.createDiv("rm-head");
+    head.createEl("h1", { cls: "rm-title", text: "Campaigns" });
+
+    const counts = new Map<string, number>();
+    for (const f of this.sessions()) {
+      const c = this.campaignOf(f);
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    const folders = this.campaignFolders();
+    const active = folders.filter((f) => counts.has(f.path));
+    const others = folders.filter((f) => !counts.has(f.path));
+
+    const scroll = root.createDiv("rm-scroll");
+    const list = scroll.createDiv("rm-cards");
+    const card = (path: string, sub: string, dim = false) => {
+      const b = list.createEl("button", { cls: "rm-scene-card" + (dim ? " is-visited" : "") });
+      b.createDiv({ cls: "rm-scene-name", text: this.campaignName(path) });
+      b.createDiv({ cls: "rm-scene-meta", text: sub });
+      b.onclick = () => this.chooseCampaign(path);
+    };
+    const plural = (n: number) => `${n} session${n === 1 ? "" : "s"}`;
+
+    for (const f of active) card(f.path, plural(counts.get(f.path)!));
+    if (counts.has("")) card("", plural(counts.get("")!));
+    if (!active.length && !counts.has("")) {
+      list.createEl("p", { cls: "rm-empty", text: "No sessions yet. Pick a campaign folder below to start one." });
+    }
+    if (others.length) {
+      list.createSpan({ cls: "rm-label rm-section-label", text: "Other folders · tap to start a campaign" });
+      for (const f of others) card(f.path, "No sessions yet", true);
+    }
+
+    const add = scroll.createDiv("rm-add-row");
+    const example = add.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
+    example.onclick = () => this.addExampleCampaign();
+    add.createEl("p", {
+      cls: "rm-empty",
+      text: "Campaign folders kept inside another folder? Set it under Settings → Run Mode → Campaigns folder.",
     });
+  }
+
+  private renderNoSession(root: HTMLElement, campaign: string) {
+    const head = root.createDiv("rm-head");
+    this.backToCampaigns(head);
+    head.createEl("h1", { cls: "rm-title", text: this.campaignName(campaign) });
+    const box = root.createDiv("rm-empty-state");
+    box.createEl("p", { text: "No sessions in this campaign yet." });
     const actions = box.createDiv("rm-empty-actions");
     const create = actions.createEl("button", { cls: "rm-btn mod-cta", text: "Create a session" });
-    create.onclick = () => this.newSession();
-    const example = actions.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
-    example.onclick = () => this.addExampleCampaign();
+    create.onclick = () => this.newSession(campaign);
   }
 
   private renderBoard(root: HTMLElement, session: TFile) {
     const fm = fmOf(this.app, session);
     const head = root.createDiv("rm-head");
 
+    const campaign = this.campaignOf(session);
+    const back = head.createEl("button", { cls: "rm-back" });
+    setIcon(back.createSpan(), "chevron-left");
+    back.createSpan({ text: campaign ? this.campaignName(campaign) : linkLabel(fm.campaign ?? "Campaigns") });
+    back.onclick = () => this.toCampaigns();
+
     const row = head.createDiv("rm-title-row");
     const col = row.createDiv("rm-title-col");
-    if (fm.campaign) col.createSpan({ cls: "rm-kicker", text: linkLabel(fm.campaign) });
     col.createEl("h1", { cls: "rm-title", text: displayName(this.app, session) });
     const sw = row.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Switch session" } });
     setIcon(sw, "list");
@@ -365,7 +499,7 @@ export class RunModeView extends ItemView {
     newScene.createSpan({ text: "New scene" });
     newScene.onclick = () => this.newScene(session);
     const newSession = add.createEl("button", { cls: "rm-btn", text: "New session" });
-    newSession.onclick = () => this.newSession();
+    newSession.onclick = () => this.newSession(campaign);
   }
 
   private renderSearch(head: HTMLElement) {
@@ -630,7 +764,7 @@ class SessionSuggest extends SuggestModal<TFile> {
     this.setPlaceholder("Pick a session");
   }
   getSuggestions(query: string): TFile[] {
-    const all = this.view.sessions().reverse();
+    const all = this.view.sessionsHere().reverse();
     const q = query.trim();
     if (!q) return all;
     const match = prepareFuzzySearch(q);

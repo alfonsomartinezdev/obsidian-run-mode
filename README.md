@@ -18,6 +18,12 @@ npm install
 npm run build
 ```
 
+## Campaigns
+
+Run mode treats each folder at the top of your vault as a campaign (or each folder inside the one you set under Settings → Run Mode → Campaigns folder). It opens straight to the campaign and session you used last. Tap the campaign name at the top of the board to switch.
+
+New sessions and scenes go inside the current campaign's folder, in `Sessions` and `Scenes` subfolders (both names can be changed in settings).
+
 ## How to set up your notes
 
 The quickest way: use the **Create a session**, **New scene** and **Add example campaign** buttons in Run mode. They create notes with the right properties for you. The details below are for setting notes up by hand.
