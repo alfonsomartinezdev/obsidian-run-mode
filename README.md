@@ -20,7 +20,7 @@ npm run build
 
 ## Campaigns
 
-Run mode treats each folder at the top of your vault as a campaign (or each folder inside the one you set under Settings → Run Mode → Campaigns folder). It opens straight to the campaign and session you used last. Tap the campaign name at the top of the board to switch.
+Run mode treats each folder inside your `Campaigns` folder as a campaign (you can point it at a different folder under Settings → Run Mode → Campaigns folder). It opens straight to the campaign and session you used last. Tap the campaign name at the top of the board to switch.
 
 New sessions and scenes go inside the current campaign's folder, in `Sessions` and `Scenes` subfolders (both names can be changed in settings).
 

@@ -24,7 +24,13 @@ export default class RunModePlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData()) ?? {};
+    // Settings saved by 0.2.0 defaulted to campaigns at the top of the vault.
+    if (!data.settingsVersion && !data.campaignsRoot) {
+      delete data.campaignsRoot;
+      data.lastCampaign = null;
+    }
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data, { settingsVersion: 2 });
   }
 
   async saveSettings() {

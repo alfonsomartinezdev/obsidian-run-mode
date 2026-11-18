@@ -36,11 +36,12 @@ var DEFAULT_SETTINGS = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
-  campaignsRoot: "",
+  campaignsRoot: "Campaigns",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
   lastSession: "",
-  lastCampaign: null
+  lastCampaign: null,
+  settingsVersion: 2
 };
 var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -423,6 +424,15 @@ async function ensureFolder(app, path) {
     else if (!(existing instanceof import_obsidian3.TFolder)) throw new Error(`"${cur}" is a file, not a folder.`);
   }
 }
+async function createFolder(app, path) {
+  const p = (0, import_obsidian3.normalizePath)(path);
+  if (app.vault.getAbstractFileByPath(p)) {
+    new import_obsidian3.Notice(`"${p}" already exists. Opening it.`);
+  } else {
+    await ensureFolder(app, p);
+  }
+  return p;
+}
 async function createNote(app, folder, name, content) {
   const dir = (0, import_obsidian3.normalizePath)(folder || "/");
   if (dir !== "/") await ensureFolder(app, dir);
@@ -606,6 +616,12 @@ var RunModeView = class extends import_obsidian4.ItemView {
     this.render(true);
   }
   // ---------- creating notes ----------
+  newCampaign() {
+    new NameModal(this.app, "New campaign", "e.g. A Crown of Salt", async (name) => {
+      const path = await createFolder(this.app, joinPath(this.campaignsRoot(), name));
+      this.chooseCampaign(path);
+    }).open();
+  }
   newSession(campaign) {
     new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
       const s = this.plugin.settings;
@@ -630,8 +646,19 @@ var RunModeView = class extends import_obsidian4.ItemView {
   editNote(file) {
     this.app.workspace.getLeaf("tab").openFile(file);
   }
+  /** The campaigns folder, matched without caring about capitals ("campaigns" finds "Campaigns"). */
   campaignsRoot() {
-    return this.plugin.settings.campaignsRoot.trim().replace(/^\/+|\/+$/g, "");
+    const wanted = joinPath(this.plugin.settings.campaignsRoot);
+    if (!wanted || this.app.vault.getAbstractFileByPath(wanted) instanceof import_obsidian4.TFolder) return wanted;
+    let cur = this.app.vault.getRoot();
+    for (const part of wanted.split("/")) {
+      const next = cur.children.find(
+        (c) => c instanceof import_obsidian4.TFolder && c.name.toLowerCase() === part.toLowerCase()
+      );
+      if (!next) return wanted;
+      cur = next;
+    }
+    return cur.path;
   }
   /** The campaign folder a note lives in, or "" if it isn't inside one. */
   campaignOf(file) {
@@ -800,11 +827,16 @@ var RunModeView = class extends import_obsidian4.ItemView {
       for (const f of others) card(f.path, "No sessions yet", true);
     }
     const add = scroll.createDiv("rm-add-row");
+    const create = add.createEl("button", { cls: "rm-btn mod-cta" });
+    (0, import_obsidian4.setIcon)(create.createSpan(), "plus");
+    create.createSpan({ text: "New campaign" });
+    create.onclick = () => this.newCampaign();
     const example = add.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
     example.onclick = () => this.addExampleCampaign();
+    const folder = this.campaignsRoot();
     add.createEl("p", {
       cls: "rm-empty",
-      text: "Campaign folders kept inside another folder? Set it under Settings \u2192 Run Mode \u2192 Campaigns folder."
+      text: folder ? `Showing the folders inside "${folder}". Change this under Settings \u2192 Run Mode \u2192 Campaigns folder.` : "Showing the folders at the top of your vault. Change this under Settings \u2192 Run Mode \u2192 Campaigns folder."
     });
   }
   renderNoSession(root, campaign) {
@@ -1156,7 +1188,13 @@ var RunModePlugin = class extends import_obsidian5.Plugin {
     workspace.revealLeaf(leaf);
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    var _a;
+    const data = (_a = await this.loadData()) != null ? _a : {};
+    if (!data.settingsVersion && !data.campaignsRoot) {
+      delete data.campaignsRoot;
+      data.lastCampaign = null;
+    }
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data, { settingsVersion: 2 });
   }
   async saveSettings() {
     await this.saveData(this.settings);

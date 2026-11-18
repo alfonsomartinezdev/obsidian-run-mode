@@ -15,7 +15,7 @@ import {
 } from "obsidian";
 import type RunModePlugin from "./main";
 import { CardModal } from "./card";
-import { addExample, createNote, NameModal, sceneContent, sessionContent } from "./create";
+import { addExample, createFolder, createNote, NameModal, sceneContent, sessionContent } from "./create";
 import {
   aliasesOf,
   asList,
@@ -180,6 +180,13 @@ export class RunModeView extends ItemView {
 
   // ---------- creating notes ----------
 
+  private newCampaign() {
+    new NameModal(this.app, "New campaign", "e.g. A Crown of Salt", async (name) => {
+      const path = await createFolder(this.app, joinPath(this.campaignsRoot(), name));
+      this.chooseCampaign(path);
+    }).open();
+  }
+
   private newSession(campaign: string) {
     new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
       const s = this.plugin.settings;
@@ -217,8 +224,19 @@ export class RunModeView extends ItemView {
     return a.basename.localeCompare(b.basename, undefined, { numeric: true });
   };
 
+  /** The campaigns folder, matched without caring about capitals ("campaigns" finds "Campaigns"). */
   private campaignsRoot(): string {
-    return this.plugin.settings.campaignsRoot.trim().replace(/^\/+|\/+$/g, "");
+    const wanted = joinPath(this.plugin.settings.campaignsRoot);
+    if (!wanted || this.app.vault.getAbstractFileByPath(wanted) instanceof TFolder) return wanted;
+    let cur = this.app.vault.getRoot();
+    for (const part of wanted.split("/")) {
+      const next = cur.children.find(
+        (c): c is TFolder => c instanceof TFolder && c.name.toLowerCase() === part.toLowerCase(),
+      );
+      if (!next) return wanted;
+      cur = next;
+    }
+    return cur.path;
   }
 
   /** The campaign folder a note lives in, or "" if it isn't inside one. */
@@ -413,11 +431,18 @@ export class RunModeView extends ItemView {
     }
 
     const add = scroll.createDiv("rm-add-row");
+    const create = add.createEl("button", { cls: "rm-btn mod-cta" });
+    setIcon(create.createSpan(), "plus");
+    create.createSpan({ text: "New campaign" });
+    create.onclick = () => this.newCampaign();
     const example = add.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
     example.onclick = () => this.addExampleCampaign();
+    const folder = this.campaignsRoot();
     add.createEl("p", {
       cls: "rm-empty",
-      text: "Campaign folders kept inside another folder? Set it under Settings → Run Mode → Campaigns folder.",
+      text: folder
+        ? `Showing the folders inside "${folder}". Change this under Settings → Run Mode → Campaigns folder.`
+        : "Showing the folders at the top of your vault. Change this under Settings → Run Mode → Campaigns folder.",
     });
   }
 

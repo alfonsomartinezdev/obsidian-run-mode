@@ -47,6 +47,17 @@ async function ensureFolder(app: App, path: string) {
   }
 }
 
+/** Creates a folder (and any missing parents). Returns its path. */
+export async function createFolder(app: App, path: string): Promise<string> {
+  const p = normalizePath(path);
+  if (app.vault.getAbstractFileByPath(p)) {
+    new Notice(`"${p}" already exists. Opening it.`);
+  } else {
+    await ensureFolder(app, p);
+  }
+  return p;
+}
+
 /** Creates a note, adding " 2", " 3"… if the name is taken. */
 export async function createNote(app: App, folder: string, name: string, content: string): Promise<TFile> {
   const dir = normalizePath(folder || "/");

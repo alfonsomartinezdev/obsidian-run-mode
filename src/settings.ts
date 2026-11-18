@@ -15,6 +15,7 @@ export interface RunModeSettings {
   sceneFolder: string;
   lastSession: string;
   lastCampaign: string | null;
+  settingsVersion: number;
 }
 
 export const DEFAULT_SETTINGS: RunModeSettings = {
@@ -26,11 +27,12 @@ export const DEFAULT_SETTINGS: RunModeSettings = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
-  campaignsRoot: "",
+  campaignsRoot: "Campaigns",
   sessionFolder: "Sessions",
   sceneFolder: "Scenes",
   lastSession: "",
   lastCampaign: null,
+  settingsVersion: 2,
 };
 
 export class RunModeSettingTab extends PluginSettingTab {
@@ -51,7 +53,7 @@ export class RunModeSettingTab extends PluginSettingTab {
         "and reads sections by their heading. Headings accept several names, separated by commas.",
     });
 
-    const text = (name: string, desc: string, key: Exclude<keyof RunModeSettings, "lastCampaign">) =>
+    const text = (name: string, desc: string, key: Exclude<keyof RunModeSettings, "lastCampaign" | "settingsVersion">) =>
       new Setting(containerEl)
         .setName(name)
         .setDesc(desc)
