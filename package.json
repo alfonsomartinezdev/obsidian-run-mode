@@ -1,0 +1,15 @@
+{
+  "name": "obsidian-run-mode",
+  "version": "0.1.0",
+  "description": "Phone-friendly scene board for running tabletop RPG sessions from Obsidian notes",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc -p . && node esbuild.config.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "*",
+    "obsidian": "*",
+    "typescript": "*"
+  }
+}
