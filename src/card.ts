@@ -2,7 +2,7 @@
 import { App, Component, MarkdownRenderer, Modal, Notice, Platform, TFile } from "obsidian";
 import type RunModePlugin from "./main";
 import { displayName, findSection, fmOf, parseNote, resolveLink, Section } from "./notes";
-import { AddClockModal, addTracker, renderTile } from "./clocks";
+import { AddClockModal, addTracker, renderRow } from "./clocks";
 import { trackersInSection } from "./trackers";
 
 export class CardModal extends Modal {
@@ -77,10 +77,10 @@ export class CardModal extends Modal {
     const clocks = trackersInSection(parsed.lines.join("\n"), s.clocks);
     const clockBox = el.createDiv("rm-card-clocks");
     if (clocks.length) clockBox.createSpan({ cls: "rm-label", text: "Clocks" });
-    const tiles = clockBox.createDiv("rm-card-tiles");
+    const tiles = clockBox.createDiv("rm-rows");
     const redraw = () => window.setTimeout(() => this.draw(), 150);
     for (const t of clocks) {
-      renderTile(tiles, t, {
+      renderRow(tiles, t, {
         app: this.app,
         file: this.file,
         onChanged: redraw,

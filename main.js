@@ -318,91 +318,120 @@ function deleteTracker(app, file, t) {
 function addTracker(app, file, name, kind, section) {
   return app.vault.process(file, (data) => addTrackerLine(data, newTrackerLine(name, kind), section));
 }
-var SVG_NS = "http://www.w3.org/2000/svg";
-function clockSvg(filled, segments, size = 40) {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 40 40");
-  svg.setAttribute("width", String(size));
-  svg.setAttribute("height", String(size));
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("rm-clock-svg");
-  const c = 20;
-  const r = 17;
-  const n = Math.max(1, Math.min(24, segments));
-  for (let i = 0; i < n; i++) {
-    const a0 = -Math.PI / 2 + i * 2 * Math.PI / n;
-    const a1 = a0 + 2 * Math.PI / n;
-    const el = n === 1 ? document.createElementNS(SVG_NS, "circle") : document.createElementNS(SVG_NS, "path");
-    if (n === 1) {
-      el.setAttribute("cx", String(c));
-      el.setAttribute("cy", String(c));
-      el.setAttribute("r", String(r));
-    } else {
-      const p = (a) => `${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
-      el.setAttribute("d", `M ${c} ${c} L ${p(a0)} A ${r} ${r} 0 0 1 ${p(a1)} Z`);
-    }
-    el.classList.add("rm-clock-seg");
-    if (i < filled) el.classList.add("is-filled");
-    svg.appendChild(el);
-  }
-  return svg;
-}
-function renderTile(parent, t, o) {
+function renderRow(parent, t, o) {
   const { app, file } = o;
-  const done = async (p) => {
-    var _a;
-    await p;
-    (_a = o.onChanged) == null ? void 0 : _a.call(o);
+  const set = async (value) => {
+    await setTracker(app, file, t, value);
+    o.onChanged();
   };
   const v = t.value;
-  const isClock = typeof v === "number" && t.max !== void 0 && t.max <= 24;
+  const isClock = typeof v === "number" && t.max !== void 0 && t.max > 0 && t.max <= 24;
   const full = isClock && v >= t.max;
-  const tile = parent.createDiv("rm-tile" + (full ? " is-full" : ""));
+  const row = parent.createDiv("rm-row" + (full ? " is-full" : ""));
+  const top = row.createDiv("rm-row-top");
+  top.createSpan({ cls: "rm-row-name", text: t.name });
   if (isClock) {
-    const pie = tile.createEl("button", {
-      cls: "rm-clock-btn",
-      attr: { "aria-label": `Fill a segment of ${t.name} (${v} of ${t.max})` }
-    });
-    pie.appendChild(clockSvg(v, t.max));
-    pie.onclick = () => {
-      if (v < t.max) done(setTracker(app, file, t, v + 1));
-    };
-  }
-  const info = tile.createEl("button", { cls: "rm-tile-info", attr: { "aria-label": `Options for ${t.name}` } });
-  info.createSpan({ cls: "rm-tile-name", text: t.name });
-  if (typeof v !== "boolean") info.createSpan({ cls: "rm-tile-value", text: v === "" ? "\u2013" : formatValue(v, t.max) });
-  if (typeof v === "number" && !isClock) {
-    const ctl = tile.createDiv("rm-tracker-ctl");
+    top.createSpan({ cls: "rm-row-value", text: formatValue(v, t.max) });
+  } else if (typeof v === "number") {
+    const ctl = top.createDiv("rm-row-ctl");
     const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
     (0, import_obsidian2.setIcon)(minus, "minus");
+    ctl.createSpan({ cls: "rm-row-count", text: String(v) });
     const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
     (0, import_obsidian2.setIcon)(plus, "plus");
-    const clamp = (n) => t.max !== void 0 ? Math.max(0, Math.min(t.max, n)) : n;
-    minus.onclick = () => done(setTracker(app, file, t, clamp(v - 1)));
-    plus.onclick = () => done(setTracker(app, file, t, clamp(v + 1)));
+    minus.onclick = () => set(v - 1);
+    plus.onclick = () => set(v + 1);
   } else if (typeof v === "boolean") {
-    const b = tile.createEl("button", {
-      cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
+    const b = top.createEl("button", {
+      cls: "rm-row-toggle" + (v ? " is-on" : ""),
       text: v ? "Yes" : "No",
-      attr: { "aria-pressed": String(v) }
+      attr: { "aria-pressed": String(v), "aria-label": `${t.name}: ${v ? "yes" : "no"}` }
     });
-    b.onclick = () => done(setTracker(app, file, t, !v));
+    b.onclick = () => set(!v);
+  } else {
+    top.createSpan({ cls: "rm-row-value", text: v || "\u2013" });
   }
-  info.onclick = (evt) => {
+  const more = top.createEl("button", { cls: "rm-row-more", attr: { "aria-label": `More for ${t.name}` } });
+  (0, import_obsidian2.setIcon)(more, "more-horizontal");
+  more.onclick = (evt) => {
     const menu = new import_obsidian2.Menu();
     if (typeof v === "number") {
-      menu.addItem(
-        (i) => i.setTitle(isClock ? "Clear one segment" : "Subtract one").setIcon("minus").onClick(() => done(setTracker(app, file, t, Math.max(isClock ? 0 : -Infinity, v - 1))))
-      );
-      menu.addItem((i) => i.setTitle("Reset to 0").setIcon("rotate-ccw").onClick(() => done(setTracker(app, file, t, 0))));
+      menu.addItem((i) => i.setTitle("Reset to 0").setIcon("rotate-ccw").onClick(() => set(0)));
     }
     menu.addItem((i) => i.setTitle(`Open ${file.basename}`).setIcon("file-text").onClick(() => o.onOpenNote(file)));
     menu.addItem(
-      (i) => i.setTitle("Delete").setIcon("trash").onClick(() => done(deleteTracker(app, file, t)))
+      (i) => i.setTitle("Delete").setIcon("trash").onClick(async () => {
+        await deleteTracker(app, file, t);
+        o.onChanged();
+      })
     );
     menu.showAtMouseEvent(evt);
   };
+  if (isClock) {
+    const segs = row.createDiv("rm-segs");
+    const n = t.max;
+    const filled = v;
+    for (let i = 1; i <= n; i++) {
+      const seg = segs.createEl("button", {
+        cls: "rm-seg" + (i <= filled ? " is-filled" : ""),
+        attr: { "aria-label": `${t.name}: set to ${i === filled ? i - 1 : i} of ${n}` }
+      });
+      seg.onclick = () => set(i === filled ? i - 1 : i);
+    }
+  }
 }
+var ClocksSheet = class extends import_obsidian2.Modal {
+  constructor(app, load, scopes, onOpenNote) {
+    super(app);
+    this.load = load;
+    this.scopes = scopes;
+    this.onOpenNote = onOpenNote;
+  }
+  async onOpen() {
+    this.modalEl.addClass("rm-card-modal", "rm-clocks-sheet");
+    if (import_obsidian2.Platform.isMobile) this.modalEl.addClass("rm-sheet");
+    await this.draw();
+  }
+  async draw() {
+    const el = this.contentEl;
+    const scrollTop = el.scrollTop;
+    const groups = await this.load();
+    el.empty();
+    el.addClass("rm-card");
+    const head = el.createDiv("rm-sheet-head");
+    head.createEl("h2", { cls: "rm-card-title", text: "Clocks" });
+    const add = head.createEl("button", { cls: "rm-btn mod-cta rm-sheet-add" });
+    (0, import_obsidian2.setIcon)(add.createSpan(), "plus");
+    add.createSpan({ text: "New clock" });
+    add.onclick = () => new AddClockModal(this.app, this.scopes, () => this.redraw()).open();
+    let total = 0;
+    for (const g of groups) {
+      if (!g.trackers.length) continue;
+      total += g.trackers.length;
+      el.createSpan({ cls: "rm-label", text: g.label });
+      const list = el.createDiv("rm-rows");
+      for (const t of g.trackers) {
+        renderRow(list, t, {
+          app: this.app,
+          file: g.file,
+          onChanged: () => this.redraw(),
+          onOpenNote: (f) => {
+            this.close();
+            this.onOpenNote(f);
+          }
+        });
+      }
+    }
+    if (!total) el.createEl("p", { cls: "rm-empty", text: "No clocks yet. Start one with New clock." });
+    el.scrollTop = scrollTop;
+  }
+  redraw() {
+    window.setTimeout(() => this.draw(), 60);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 var KINDS = [
   { kind: 4, label: "4" },
   { kind: 6, label: "6" },
@@ -537,10 +566,10 @@ var CardModal = class extends import_obsidian3.Modal {
     const clocks = trackersInSection(parsed.lines.join("\n"), s.clocks);
     const clockBox = el.createDiv("rm-card-clocks");
     if (clocks.length) clockBox.createSpan({ cls: "rm-label", text: "Clocks" });
-    const tiles = clockBox.createDiv("rm-card-tiles");
+    const tiles = clockBox.createDiv("rm-rows");
     const redraw = () => window.setTimeout(() => this.draw(), 150);
     for (const t of clocks) {
-      renderTile(tiles, t, {
+      renderRow(tiles, t, {
         app: this.app,
         file: this.file,
         onChanged: redraw,
@@ -1459,7 +1488,7 @@ var RunModeView = class extends import_obsidian5.ItemView {
     });
     return scopes;
   }
-  async renderTrackers(root, session, scene) {
+  async clockGroups(session, scene) {
     const sec = this.plugin.settings.clocks;
     const read = (f) => this.app.vault.cachedRead(f);
     const groups = [];
@@ -1467,23 +1496,28 @@ var RunModeView = class extends import_obsidian5.ItemView {
     groups.push({ label: "Session", file: session, trackers: trackersInSection(await read(session), sec) });
     const camp = this.getFile(this.trackersPath(session));
     if (camp) groups.push({ label: "Campaign", file: camp, trackers: parseTrackers(await read(camp)) });
+    return groups;
+  }
+  /** One big button at the bottom: a summary of the clocks that matter now. Tap for the clocks sheet. */
+  async renderTrackers(root, session, scene) {
+    const groups = await this.clockGroups(session, scene);
+    const all = [].concat(...groups.map((g) => g.trackers));
     const bar = root.createDiv("rm-trackers");
-    const row = bar.createDiv("rm-tracker-row");
-    let total = 0;
-    for (const g of groups) {
-      if (!g.trackers.length) continue;
-      total += g.trackers.length;
-      const group = row.createDiv("rm-tile-group");
-      group.createSpan({ cls: "rm-tile-group-label", text: g.label });
-      const tiles = group.createDiv("rm-tile-row");
-      for (const t of g.trackers) {
-        renderTile(tiles, t, { app: this.app, file: g.file, onOpenNote: (f) => this.editNote(f) });
-      }
-    }
-    if (!total) row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No clocks yet." });
-    const add = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Add a clock" } });
-    (0, import_obsidian5.setIcon)(add, "plus");
-    add.onclick = () => new AddClockModal(this.app, this.clockScopes(session, scene)).open();
+    const btn = bar.createEl("button", { cls: "rm-clocks-bar", attr: { "aria-label": "Open clocks" } });
+    (0, import_obsidian5.setIcon)(btn.createSpan("rm-clocks-bar-icon"), "timer");
+    const text = btn.createDiv("rm-clocks-bar-text");
+    text.createSpan({ cls: "rm-clocks-bar-title", text: all.length ? `Clocks \xB7 ${all.length}` : "Clocks" });
+    text.createSpan({
+      cls: "rm-clocks-bar-summary",
+      text: all.length ? all.slice(0, 4).map((t) => `${t.name} ${formatValue(t.value, t.max)}`).join(" \xB7 ") : "Tap to start one"
+    });
+    (0, import_obsidian5.setIcon)(btn.createSpan("rm-clocks-bar-chevron"), "chevron-up");
+    btn.onclick = () => new ClocksSheet(
+      this.app,
+      () => this.clockGroups(session, scene),
+      this.clockScopes(session, scene),
+      (f) => this.editNote(f)
+    ).open();
   }
 };
 var SessionSuggest = class extends import_obsidian5.SuggestModal {

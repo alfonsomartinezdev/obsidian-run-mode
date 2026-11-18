@@ -16,8 +16,8 @@ import {
 } from "obsidian";
 import type RunModePlugin from "./main";
 import { CardModal } from "./card";
-import { parseTrackers, Tracker, trackersInSection, TRACKERS_TEMPLATE } from "./trackers";
-import { AddClockModal, addTracker, ClockScope, renderTile } from "./clocks";
+import { formatValue, parseTrackers, Tracker, trackersInSection, TRACKERS_TEMPLATE } from "./trackers";
+import { addTracker, ClockGroup, ClockScope, ClocksSheet } from "./clocks";
 import { addExample, createFolder, createNote, NameModal, sceneContent, sessionContent } from "./create";
 import {
   aliasesOf,
@@ -773,33 +773,43 @@ export class RunModeView extends ItemView {
     return scopes;
   }
 
-  private async renderTrackers(root: HTMLElement, session: TFile, scene: TFile | null) {
+  private async clockGroups(session: TFile, scene: TFile | null): Promise<ClockGroup[]> {
     const sec = this.plugin.settings.clocks;
     const read = (f: TFile) => this.app.vault.cachedRead(f);
-    const groups: { label: string; file: TFile; trackers: Tracker[] }[] = [];
+    const groups: ClockGroup[] = [];
     if (scene) groups.push({ label: "Scene", file: scene, trackers: trackersInSection(await read(scene), sec) });
     groups.push({ label: "Session", file: session, trackers: trackersInSection(await read(session), sec) });
     const camp = this.getFile(this.trackersPath(session));
     if (camp) groups.push({ label: "Campaign", file: camp, trackers: parseTrackers(await read(camp)) });
+    return groups;
+  }
 
+  /** One big button at the bottom: a summary of the clocks that matter now. Tap for the clocks sheet. */
+  private async renderTrackers(root: HTMLElement, session: TFile, scene: TFile | null) {
+    const groups = await this.clockGroups(session, scene);
+    const all = ([] as Tracker[]).concat(...groups.map((g) => g.trackers));
     const bar = root.createDiv("rm-trackers");
-    const row = bar.createDiv("rm-tracker-row");
-    let total = 0;
-    for (const g of groups) {
-      if (!g.trackers.length) continue;
-      total += g.trackers.length;
-      const group = row.createDiv("rm-tile-group");
-      group.createSpan({ cls: "rm-tile-group-label", text: g.label });
-      const tiles = group.createDiv("rm-tile-row");
-      for (const t of g.trackers) {
-        renderTile(tiles, t, { app: this.app, file: g.file, onOpenNote: (f) => this.editNote(f) });
-      }
-    }
-    if (!total) row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No clocks yet." });
-
-    const add = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Add a clock" } });
-    setIcon(add, "plus");
-    add.onclick = () => new AddClockModal(this.app, this.clockScopes(session, scene)).open();
+    const btn = bar.createEl("button", { cls: "rm-clocks-bar", attr: { "aria-label": "Open clocks" } });
+    setIcon(btn.createSpan("rm-clocks-bar-icon"), "timer");
+    const text = btn.createDiv("rm-clocks-bar-text");
+    text.createSpan({ cls: "rm-clocks-bar-title", text: all.length ? `Clocks · ${all.length}` : "Clocks" });
+    text.createSpan({
+      cls: "rm-clocks-bar-summary",
+      text: all.length
+        ? all
+            .slice(0, 4)
+            .map((t) => `${t.name} ${formatValue(t.value, t.max)}`)
+            .join(" · ")
+        : "Tap to start one",
+    });
+    setIcon(btn.createSpan("rm-clocks-bar-chevron"), "chevron-up");
+    btn.onclick = () =>
+      new ClocksSheet(
+        this.app,
+        () => this.clockGroups(session, scene),
+        this.clockScopes(session, scene),
+        (f) => this.editNote(f),
+      ).open();
   }
 }
 

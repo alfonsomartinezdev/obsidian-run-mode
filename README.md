@@ -52,7 +52,7 @@ One per line:
 - Ledger found: no      # a yes/no toggle
 ```
 
-In Run mode, the bar at the bottom shows the current scene's clocks, then the session's, then the campaign's. Tap a clock to fill a segment, tap its name for more (clear a segment, reset, open its note, delete), and tap **+** to start a new one. Character and faction cards show their own clocks too.
+In Run mode, the button at the bottom summarises the clocks that matter right now (this scene, the session, the campaign). Tap it to open the clocks sheet: tap any segment to set a clock to it (tap the last filled one to take it back), use the big − / + for counters, and **New clock** to start one. Reset, delete and open-note live behind each clock's ⋯ button. Character and faction cards show their own clocks too.
 
 ### Scene note
 

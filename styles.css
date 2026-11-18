@@ -356,62 +356,165 @@
   margin: 0;
 }
 
-/* ---------- trackers ---------- */
+/* ---------- clocks bar ---------- */
 .rm-trackers {
   border-top: 1px solid var(--background-modifier-border);
   background: var(--background-secondary);
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
 }
-.rm-tracker-row {
+.rm-clocks-bar {
+  width: 100%;
+  min-height: 56px;
+  height: auto !important;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px !important;
+  border-radius: 14px;
+  text-align: left;
 }
-.rm-tracker {
-  flex: 1 0 104px;
+.rm-clocks-bar-icon,
+.rm-clocks-bar-chevron {
+  flex: none;
+  display: flex;
+  color: var(--text-muted);
+}
+.rm-clocks-bar-text {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 6px;
-  border-radius: 12px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
+  gap: 2px;
 }
-.rm-tracker-name {
-  font-size: 12px;
+.rm-clocks-bar-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.rm-clocks-bar-summary {
+  font-size: 13px;
   color: var(--text-muted);
-  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.rm-tracker-ctl {
+
+/* ---------- clock rows (sheet and cards) ---------- */
+.rm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+.rm-row.is-full {
+  border-color: var(--color-red);
+}
+.rm-row-top {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  min-height: 44px;
 }
-.rm-tracker-ctl button {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 10px;
+.rm-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.rm-row-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.rm-row-ctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rm-row-ctl button {
+  width: 48px;
+  height: 48px !important;
+  padding: 0 !important;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.rm-tracker-value {
-  min-width: 34px;
+.rm-row-count {
+  min-width: 36px;
   text-align: center;
-  font-weight: 600;
-  font-size: 17px;
+  font-size: 20px;
+  font-weight: 700;
 }
-.rm-tracker-toggle {
-  min-height: 36px;
-  min-width: 72px;
-  border-radius: 10px;
+.rm-row-toggle {
+  min-width: 88px;
+  min-height: 48px;
+  height: auto !important;
+  border-radius: 12px;
+  font-size: 16px;
   font-weight: 600;
 }
-.rm-tracker-toggle.is-on {
-  background: var(--rm-inplay, var(--color-orange)) !important;
+.rm-row-toggle.is-on {
+  background: var(--color-orange) !important;
   color: var(--text-on-accent, #1a1408);
+}
+.rm-row-more {
+  flex: none;
+  width: 44px;
+  height: 44px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rm-segs {
+  display: flex;
+  gap: 4px;
+}
+.rm-seg {
+  flex: 1;
+  min-width: 0;
+  height: 48px !important;
+  padding: 0 !important;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border) !important;
+  background: var(--background-primary) !important;
+  box-shadow: none !important;
+}
+.rm-seg.is-filled {
+  background: var(--color-orange) !important;
+  border-color: var(--color-orange) !important;
+}
+.rm-row.is-full .rm-seg.is-filled {
+  background: var(--color-red) !important;
+  border-color: var(--color-red) !important;
+}
+
+/* ---------- clocks sheet ---------- */
+.rm-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 36px;
+}
+.rm-view .rm-sheet-add,
+.rm-sheet-add {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ---------- character card ---------- */
@@ -526,123 +629,4 @@
 }
 .rm-section-label {
   margin-top: 12px;
-}
-.rm-tracker-edit {
-  flex: none;
-  width: 44px;
-  align-self: stretch;
-  height: auto !important;
-  padding: 0;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rm-tracker-empty {
-  align-self: center;
-  flex: 1;
-  margin: 0;
-}
-.rm-view .rm-add-trackers {
-  width: 100%;
-  min-height: 44px;
-}
-
-/* ---------- clocks ---------- */
-.rm-tracker-row {
-  align-items: stretch;
-}
-.rm-tile-group {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.rm-tile-group-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding-left: 2px;
-}
-.rm-tile-row {
-  display: flex;
-  gap: 8px;
-}
-.rm-tile {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  min-height: 52px;
-}
-.rm-tile.is-full {
-  border-color: var(--color-red);
-}
-.rm-clock-btn {
-  flex: none;
-  width: 44px;
-  height: 44px !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rm-clock-seg {
-  fill: transparent;
-  stroke: var(--text-muted);
-  stroke-width: 1.5;
-}
-.rm-clock-seg.is-filled {
-  fill: var(--color-orange);
-  stroke: var(--background-primary);
-}
-.rm-tile.is-full .rm-clock-seg.is-filled {
-  fill: var(--color-red);
-}
-.rm-tile-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  height: auto !important;
-  min-height: 44px;
-  padding: 2px 4px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  text-align: left;
-  white-space: nowrap;
-}
-.rm-tile-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-normal);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rm-tile-value {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.rm-card-clocks {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.rm-card-clocks:empty {
-  display: none;
-}
-.rm-card-tiles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
