@@ -10,6 +10,8 @@ export interface RunModeSettings {
   leads: string;
   playersKnow: string;
   dmOnly: string;
+  sessionFolder: string;
+  sceneFolder: string;
   lastSession: string;
 }
 
@@ -22,6 +24,8 @@ export const DEFAULT_SETTINGS: RunModeSettings = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
+  sessionFolder: "Sessions",
+  sceneFolder: "Scenes",
   lastSession: "",
 };
 
@@ -57,6 +61,8 @@ export class RunModeSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Note types").setHeading();
     text("Scene type", "Value of `type` on scene notes.", "sceneType");
     text("Session type", "Value of `type` on session notes.", "sessionType");
+    text("New session folder", "Where the New session button puts notes.", "sessionFolder");
+    text("New scene folder", "Where the New scene button puts notes.", "sceneFolder");
 
     new Setting(containerEl).setName("Scene headings").setHeading();
     text("Read aloud", "Shown first, in a highlighted box.", "readAloud");

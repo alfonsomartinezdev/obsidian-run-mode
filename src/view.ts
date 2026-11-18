@@ -14,6 +14,7 @@ import {
 } from "obsidian";
 import type RunModePlugin from "./main";
 import { CardModal } from "./card";
+import { addExample, createNote, NameModal, sceneContent, sessionContent } from "./create";
 import {
   aliasesOf,
   asList,
@@ -152,6 +153,34 @@ export class RunModeView extends ItemView {
     this.render(true);
   }
 
+  // ---------- creating notes ----------
+
+  private newSession() {
+    new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
+      const s = this.plugin.settings;
+      const f = await createNote(this.app, s.sessionFolder, name, sessionContent(s.sessionType));
+      await this.chooseSession(f);
+    }).open();
+  }
+
+  private newScene(session: TFile) {
+    new NameModal(this.app, "New scene", "e.g. The Tannery", async (name) => {
+      const s = this.plugin.settings;
+      const f = await createNote(this.app, s.sceneFolder, name, sceneContent(s.sceneType, session.basename));
+      new Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
+      this.app.workspace.getLeaf("tab").openFile(f);
+    }).open();
+  }
+
+  private async addExampleCampaign() {
+    const f = await addExample(this.app);
+    if (f) window.setTimeout(() => this.chooseSession(f), 300);
+  }
+
+  private editNote(file: TFile) {
+    this.app.workspace.getLeaf("tab").openFile(file);
+  }
+
   // ---------- data ----------
 
   private byOrder = (a: TFile, b: TFile) => {
@@ -265,10 +294,13 @@ export class RunModeView extends ItemView {
     const box = root.createDiv("rm-empty-state");
     box.createEl("h2", { text: "No sessions yet" });
     box.createEl("p", {
-      text:
-        `Add type: ${this.plugin.settings.sessionType} to a note's properties to make it a session, ` +
-        `then give your scene notes type: ${this.plugin.settings.sceneType} and a session property linking to it.`,
+      text: "Create your first session, or add a small example campaign to see how it works.",
     });
+    const actions = box.createDiv("rm-empty-actions");
+    const create = actions.createEl("button", { cls: "rm-btn mod-cta", text: "Create a session" });
+    create.onclick = () => this.newSession();
+    const example = actions.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
+    example.onclick = () => this.addExampleCampaign();
   }
 
   private renderBoard(root: HTMLElement, session: TFile) {
@@ -306,12 +338,7 @@ export class RunModeView extends ItemView {
     const shown = scenes.filter((s) => this.st.filter === "all" || s.status === this.st.filter);
 
     if (!scenes.length) {
-      list.createEl("p", {
-        cls: "rm-empty",
-        text:
-          "No scenes in this session yet. Give a scene note the properties " +
-          `type: ${this.plugin.settings.sceneType} and session: [[${session.basename}]].`,
-      });
+      list.createEl("p", { cls: "rm-empty", text: "No scenes in this session yet." });
     } else if (!shown.length) {
       list.createEl("p", { cls: "rm-empty", text: "No scenes with this status." });
     }
@@ -331,6 +358,14 @@ export class RunModeView extends ItemView {
       if (meta.length && status !== "visited") card.createDiv({ cls: "rm-scene-meta", text: meta.join(" · ") });
       card.onclick = () => this.openTarget(f);
     }
+
+    const add = scroll.createDiv("rm-add-row");
+    const newScene = add.createEl("button", { cls: "rm-btn mod-cta" });
+    setIcon(newScene.createSpan(), "plus");
+    newScene.createSpan({ text: "New scene" });
+    newScene.onclick = () => this.newScene(session);
+    const newSession = add.createEl("button", { cls: "rm-btn", text: "New session" });
+    newSession.onclick = () => this.newSession();
   }
 
   private renderSearch(head: HTMLElement) {
@@ -392,10 +427,14 @@ export class RunModeView extends ItemView {
       MarkdownRenderer.render(this.app, text, into, scene.path, comp);
 
     const head = root.createDiv("rm-head");
-    const back = head.createEl("button", { cls: "rm-back" });
+    const nav = head.createDiv("rm-title-row");
+    const back = nav.createEl("button", { cls: "rm-back" });
     setIcon(back.createSpan(), "chevron-left");
     back.createSpan({ text: "Board" });
     back.onclick = () => this.toBoard();
+    const edit = nav.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Edit this scene's note" } });
+    setIcon(edit, "pencil");
+    edit.onclick = () => this.editNote(scene);
 
     const col = head.createDiv("rm-title-col");
     const place = fm.place ?? fm.location;

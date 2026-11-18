@@ -499,3 +499,28 @@
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
+
+/* ---------- create buttons ---------- */
+.rm-view .rm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: auto;
+}
+.rm-empty-actions,
+.rm-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.rm-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rm-name-form input {
+  min-height: 44px;
+  font-size: 16px;
+}

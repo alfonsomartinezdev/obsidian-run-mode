@@ -20,6 +20,8 @@ npm run build
 
 ## How to set up your notes
 
+The quickest way: use the **Create a session**, **New scene** and **Add example campaign** buttons in Run mode. They create notes with the right properties for you. The details below are for setting notes up by hand.
+
 Run mode looks at each note's **properties** (the block at the top) and **headings**. Templates for all three note kinds are in the sample vault's `Templates` folder.
 
 ### Session note

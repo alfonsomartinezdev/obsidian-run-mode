@@ -23,7 +23,7 @@ __export(main_exports, {
   default: () => RunModePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
@@ -36,6 +36,8 @@ var DEFAULT_SETTINGS = {
   leads: "Leads, Leads to, Exits",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
+  sessionFolder: "Sessions",
+  sceneFolder: "Scenes",
   lastSession: ""
 };
 var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -58,6 +60,8 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Note types").setHeading();
     text("Scene type", "Value of `type` on scene notes.", "sceneType");
     text("Session type", "Value of `type` on session notes.", "sessionType");
+    text("New session folder", "Where the New session button puts notes.", "sessionFolder");
+    text("New scene folder", "Where the New scene button puts notes.", "sceneFolder");
     new import_obsidian.Setting(containerEl).setName("Scene headings").setHeading();
     text("Read aloud", "Shown first, in a highlighted box.", "readAloud");
     text("Who's here", "Each linked name becomes a tappable chip.", "whoHere");
@@ -70,7 +74,7 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/view.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // src/card.ts
 var import_obsidian2 = require("obsidian");
@@ -264,9 +268,220 @@ var CardModal = class extends import_obsidian2.Modal {
   }
 };
 
+// src/create.ts
+var import_obsidian3 = require("obsidian");
+
+// src/examples.ts
+var EXAMPLE_NOTES = [
+  {
+    "path": "Run Mode Example/Sessions/Example Session.md",
+    "content": '---\ntype: session\ncampaign: "[[A Crown of Salt]]"\nstatus: next\ntrackers:\n  - name: Guild rep\n    value: 3\n  - name: Alarm\n    value: 2\n    max: 6\n  - name: Ledger found\n    value: false\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n'
+  },
+  {
+    "path": "Run Mode Example/Scenes/Ambush on Rope Street.md",
+    "content": `---
+type: scene
+session: "[[Example Session]]"
+status: unvisited
+place: Anywhere
+hook: Drop this in whenever the party gets too loud.
+---
+## Who's here
+- [[Hollow Chorister]] \xD72, in stolen guild cloaks
+
+## To find
+- [ ] Guild token on one of the bodies
+`
+  },
+  {
+    "path": "Run Mode Example/Scenes/Chapel Undercroft.md",
+    "content": `---
+type: scene
+session: "[[Example Session]]"
+status: unvisited
+place: Old town
+hook: The Hollow Choir sings below the altar.
+---
+## Read aloud
+Every candle gutters toward the sound, pointing the way down.
+
+## Who's here
+- [[Hollow Chorister]] \xD74
+
+## How this could go
+- They shatter the circle by force, and the song turns on them.
+- They join in, sing the wrong verse on purpose, and unmake it from inside.
+- They're too slow; the hymn lands, and something answers from below.
+`
+  },
+  {
+    "path": "Run Mode Example/Scenes/Harbourmaster's Office.md",
+    "content": `---
+type: scene
+session: "[[Example Session]]"
+status: unvisited
+place: Docks district
+hook: Captain Holt will trade manifests for a favour.
+leads:
+  - "[[Chapel Undercroft]]"
+---
+## Read aloud
+Ledgers to the ceiling, a window over the harbour, and a captain who hasn't slept.
+
+## Who's here
+- [[Captain Veyra Holt]]
+
+## To find
+- [ ] Manifest naming the chapel as a delivery address
+`
+  },
+  {
+    "path": "Run Mode Example/Scenes/The Tannery.md",
+    "content": `---
+type: scene
+session: "[[Example Session]]"
+status: in-play
+place: Docks district
+hook: The smuggler's ledger is hidden in a vat nobody will touch.
+leads:
+  - "[[Harbourmaster's Office]]"
+  - "[[Ambush on Rope Street]]"
+---
+## Read aloud
+The stink hits before the door does. Six vats steam in the yard; one is covered with a tarp and chained.
+
+## Who's here
+- [[Old Marra]]
+- 2 dockhands, bored and armed with hooks
+
+## To find
+- [ ] Chain key on Marra's belt
+- [ ] The ledger, under the tarp
+
+## If it goes sideways
+Marra shouts for the dockhands. If the party threatens the vats, she folds and bargains instead.
+`
+  },
+  {
+    "path": "Run Mode Example/Characters/Captain Veyra Holt.md",
+    "content": "---\ntype: NPC\nrole: Harbourmaster\ntagline: Keeps Saltreach fed through the winter, whatever the guild says.\n---\n## Players know\nRuns the harbour. Owes nobody, or so she says.\n\n## DM only\nShe owes [[the Tidewardens]] more than she'll admit. If the party pushes, she'll trade the manifest for help with them.\n"
+  },
+  {
+    "path": "Run Mode Example/Characters/Hollow Chorister.md",
+    "content": "---\ntype: monster\ntagline: Robed figures singing in a voice with no mouth.\nstats:\n  AC: 13\n  HP: 18\n  Speed: 30 ft\n---\n## Players know\nThey don't stop singing, even when struck.\n\n## DM only\nHarmonize: 2d6 psychic damage to everyone who can hear, once per round while three or more are alive.\n"
+  },
+  {
+    "path": "Run Mode Example/Characters/Old Marra.md",
+    "content": "---\ntype: NPC\nrole: Tannery owner\ntagline: Gravel voice, stained forearms, never sits down.\nstats:\n  AC: 11\n  HP: 9\n  Attitude: Wary\n---\n## Players know\nRuns the tannery and has for thirty years. Hates the guild's tax men. Pays dockhands in cash.\n\n## DM only\nHid the ledger for the smugglers, who hold her grandson's debt. Folds if the party offers to clear it.\n"
+  }
+];
+
+// src/create.ts
+var NameModal = class extends import_obsidian3.Modal {
+  constructor(app, heading, placeholder, onSubmit) {
+    super(app);
+    this.heading = heading;
+    this.placeholder = placeholder;
+    this.onSubmit = onSubmit;
+  }
+  onOpen() {
+    this.modalEl.addClass("rm-name-modal");
+    const el = this.contentEl;
+    el.createEl("h3", { text: this.heading });
+    const form = el.createEl("form", { cls: "rm-name-form" });
+    const input = form.createEl("input", { type: "text", attr: { placeholder: this.placeholder } });
+    const btn = form.createEl("button", { cls: "mod-cta", text: "Create", attr: { type: "submit" } });
+    btn.style.minHeight = "44px";
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const name = input.value.trim().replace(/[\\/:*?"<>|#^[\]]/g, "");
+      if (!name) return;
+      this.close();
+      this.onSubmit(name);
+    };
+    window.setTimeout(() => input.focus(), 50);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+async function ensureFolder(app, path) {
+  const parts = (0, import_obsidian3.normalizePath)(path).split("/").filter(Boolean);
+  let cur = "";
+  for (const p of parts) {
+    cur = cur ? `${cur}/${p}` : p;
+    const existing = app.vault.getAbstractFileByPath(cur);
+    if (!existing) await app.vault.createFolder(cur);
+    else if (!(existing instanceof import_obsidian3.TFolder)) throw new Error(`"${cur}" is a file, not a folder.`);
+  }
+}
+async function createNote(app, folder, name, content) {
+  const dir = (0, import_obsidian3.normalizePath)(folder || "/");
+  if (dir !== "/") await ensureFolder(app, dir);
+  const prefix = dir === "/" ? "" : `${dir}/`;
+  let path = (0, import_obsidian3.normalizePath)(`${prefix}${name}.md`);
+  for (let i = 2; app.vault.getAbstractFileByPath(path); i++) {
+    path = (0, import_obsidian3.normalizePath)(`${prefix}${name} ${i}.md`);
+  }
+  return app.vault.create(path, content);
+}
+function sessionContent(sessionType) {
+  return [
+    "---",
+    `type: ${sessionType}`,
+    "status: next",
+    "trackers:",
+    "  - name: Clock",
+    "    value: 0",
+    "    max: 6",
+    "---",
+    ""
+  ].join("\n");
+}
+function sceneContent(sceneType, sessionName) {
+  return [
+    "---",
+    `type: ${sceneType}`,
+    `session: "[[${sessionName}]]"`,
+    "status: unvisited",
+    "place: ",
+    "hook: ",
+    "leads: []",
+    "---",
+    "## Read aloud",
+    "",
+    "",
+    "## Who's here",
+    "- ",
+    "",
+    "## To find",
+    "- [ ] ",
+    ""
+  ].join("\n");
+}
+async function addExample(app) {
+  let session = null;
+  let skipped = 0;
+  for (const n of EXAMPLE_NOTES) {
+    const existing = app.vault.getAbstractFileByPath(n.path);
+    if (existing instanceof import_obsidian3.TFile) {
+      skipped++;
+      if (n.path.endsWith("Example Session.md")) session = existing;
+      continue;
+    }
+    await ensureFolder(app, n.path.split("/").slice(0, -1).join("/"));
+    const f = await app.vault.create(n.path, n.content);
+    if (n.path.endsWith("Example Session.md")) session = f;
+  }
+  new import_obsidian3.Notice(
+    skipped === EXAMPLE_NOTES.length ? "The example campaign is already in your vault." : 'Added an example campaign in the "Run Mode Example" folder. Delete it whenever you like.'
+  );
+  return session;
+}
+
 // src/view.ts
 var VIEW_TYPE = "run-mode-view";
-var RunModeView = class extends import_obsidian3.ItemView {
+var RunModeView = class extends import_obsidian4.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -336,7 +551,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     const src = this.st.mode === "scene" && this.st.scenePath || this.st.sessionPath || "";
     const f = resolveLink(this.app, href, src);
     if (f) this.openTarget(f);
-    else new import_obsidian3.Notice(`No note named "${href}" yet.`);
+    else new import_obsidian4.Notice(`No note named "${href}" yet.`);
   }
   openTarget(file) {
     if (noteType(this.app, file) === this.plugin.settings.sceneType) {
@@ -361,6 +576,29 @@ var RunModeView = class extends import_obsidian3.ItemView {
     this.app.workspace.requestSaveLayout();
     this.render(true);
   }
+  // ---------- creating notes ----------
+  newSession() {
+    new NameModal(this.app, "New session", "e.g. Session 8", async (name) => {
+      const s = this.plugin.settings;
+      const f = await createNote(this.app, s.sessionFolder, name, sessionContent(s.sessionType));
+      await this.chooseSession(f);
+    }).open();
+  }
+  newScene(session) {
+    new NameModal(this.app, "New scene", "e.g. The Tannery", async (name) => {
+      const s = this.plugin.settings;
+      const f = await createNote(this.app, s.sceneFolder, name, sceneContent(s.sceneType, session.basename));
+      new import_obsidian4.Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
+      this.app.workspace.getLeaf("tab").openFile(f);
+    }).open();
+  }
+  async addExampleCampaign() {
+    const f = await addExample(this.app);
+    if (f) window.setTimeout(() => this.chooseSession(f), 300);
+  }
+  editNote(file) {
+    this.app.workspace.getLeaf("tab").openFile(file);
+  }
   sessions() {
     const t = this.plugin.settings.sessionType;
     return this.app.vault.getMarkdownFiles().filter((f) => noteType(this.app, f) === t).sort(this.byOrder);
@@ -369,7 +607,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     var _a, _b;
     const get = (p) => {
       const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
-      return f instanceof import_obsidian3.TFile ? f : null;
+      return f instanceof import_obsidian4.TFile ? f : null;
     };
     const chosen = (_a = get(this.st.sessionPath)) != null ? _a : get(this.plugin.settings.lastSession);
     if (chosen) return chosen;
@@ -420,7 +658,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
   async render(resetScroll = false) {
     var _a, _b;
     const token = ++this.renderToken;
-    const comp = new import_obsidian3.Component();
+    const comp = new import_obsidian4.Component();
     this.addChild(comp);
     const root = createDiv({ cls: "rm-view" });
     const oldScroll = (_b = (_a = this.contentEl.querySelector(".rm-scroll")) == null ? void 0 : _a.scrollTop) != null ? _b : 0;
@@ -430,7 +668,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     } else {
       this.st.sessionPath = session.path;
       const sceneFile = this.st.mode === "scene" && this.st.scenePath ? this.app.vault.getAbstractFileByPath(this.st.scenePath) : null;
-      if (sceneFile instanceof import_obsidian3.TFile) await this.renderScene(root, comp, session, sceneFile);
+      if (sceneFile instanceof import_obsidian4.TFile) await this.renderScene(root, comp, session, sceneFile);
       else {
         this.st.mode = "board";
         this.renderBoard(root, session);
@@ -452,8 +690,13 @@ var RunModeView = class extends import_obsidian3.ItemView {
     const box = root.createDiv("rm-empty-state");
     box.createEl("h2", { text: "No sessions yet" });
     box.createEl("p", {
-      text: `Add type: ${this.plugin.settings.sessionType} to a note's properties to make it a session, then give your scene notes type: ${this.plugin.settings.sceneType} and a session property linking to it.`
+      text: "Create your first session, or add a small example campaign to see how it works."
     });
+    const actions = box.createDiv("rm-empty-actions");
+    const create = actions.createEl("button", { cls: "rm-btn mod-cta", text: "Create a session" });
+    create.onclick = () => this.newSession();
+    const example = actions.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
+    example.onclick = () => this.addExampleCampaign();
   }
   renderBoard(root, session) {
     var _a;
@@ -464,7 +707,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     if (fm.campaign) col.createSpan({ cls: "rm-kicker", text: linkLabel(fm.campaign) });
     col.createEl("h1", { cls: "rm-title", text: displayName(this.app, session) });
     const sw = row.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Switch session" } });
-    (0, import_obsidian3.setIcon)(sw, "list");
+    (0, import_obsidian4.setIcon)(sw, "list");
     sw.onclick = () => new SessionSuggest(this.app, this).open();
     this.renderSearch(head);
     const scenes = this.scenesFor(session).map((f) => ({ f, status: normStatus(fmOf(this.app, f).status) }));
@@ -486,10 +729,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     const list = scroll.createDiv("rm-cards");
     const shown = scenes.filter((s) => this.st.filter === "all" || s.status === this.st.filter);
     if (!scenes.length) {
-      list.createEl("p", {
-        cls: "rm-empty",
-        text: `No scenes in this session yet. Give a scene note the properties type: ${this.plugin.settings.sceneType} and session: [[${session.basename}]].`
-      });
+      list.createEl("p", { cls: "rm-empty", text: "No scenes in this session yet." });
     } else if (!shown.length) {
       list.createEl("p", { cls: "rm-empty", text: "No scenes with this status." });
     }
@@ -508,10 +748,17 @@ var RunModeView = class extends import_obsidian3.ItemView {
       if (meta.length && status !== "visited") card.createDiv({ cls: "rm-scene-meta", text: meta.join(" \xB7 ") });
       card.onclick = () => this.openTarget(f);
     }
+    const add = scroll.createDiv("rm-add-row");
+    const newScene = add.createEl("button", { cls: "rm-btn mod-cta" });
+    (0, import_obsidian4.setIcon)(newScene.createSpan(), "plus");
+    newScene.createSpan({ text: "New scene" });
+    newScene.onclick = () => this.newScene(session);
+    const newSession = add.createEl("button", { cls: "rm-btn", text: "New session" });
+    newSession.onclick = () => this.newSession();
   }
   renderSearch(head) {
     const wrap = head.createDiv("rm-search");
-    (0, import_obsidian3.setIcon)(wrap.createSpan("rm-search-icon"), "search");
+    (0, import_obsidian4.setIcon)(wrap.createSpan("rm-search-icon"), "search");
     const input = wrap.createEl("input", {
       type: "search",
       attr: { placeholder: "Jump to any NPC, place, scene\u2026", "aria-label": "Search notes" }
@@ -531,7 +778,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     results.empty();
     const q = input.value.trim();
     if (!q) return;
-    const match = (0, import_obsidian3.prepareFuzzySearch)(q);
+    const match = (0, import_obsidian4.prepareFuzzySearch)(q);
     const hits = [];
     for (const f of this.app.vault.getMarkdownFiles()) {
       let best = null;
@@ -562,12 +809,16 @@ var RunModeView = class extends import_obsidian3.ItemView {
     const fm = fmOf(this.app, scene);
     const status = normStatus(fm.status);
     const parsed = await parseNote(this.app, scene);
-    const md = (text, into) => import_obsidian3.MarkdownRenderer.render(this.app, text, into, scene.path, comp);
+    const md = (text, into) => import_obsidian4.MarkdownRenderer.render(this.app, text, into, scene.path, comp);
     const head = root.createDiv("rm-head");
-    const back = head.createEl("button", { cls: "rm-back" });
-    (0, import_obsidian3.setIcon)(back.createSpan(), "chevron-left");
+    const nav = head.createDiv("rm-title-row");
+    const back = nav.createEl("button", { cls: "rm-back" });
+    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
     back.createSpan({ text: "Board" });
     back.onclick = () => this.toBoard();
+    const edit = nav.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Edit this scene's note" } });
+    (0, import_obsidian4.setIcon)(edit, "pencil");
+    edit.onclick = () => this.editNote(scene);
     const col = head.createDiv("rm-title-col");
     const place = (_a = fm.place) != null ? _a : fm.location;
     if (place) col.createSpan({ cls: "rm-kicker", text: linkLabel(place) });
@@ -617,7 +868,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
           chip.onclick = () => {
             const f = resolveLink(this.app, l.target, scene.path);
             if (f) this.openTarget(f);
-            else new import_obsidian3.Notice(`No note named "${l.target}" yet.`);
+            else new import_obsidian4.Notice(`No note named "${l.target}" yet.`);
           };
         }
       }
@@ -675,7 +926,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
       return lines.join("\n");
     });
     if (missing) {
-      new import_obsidian3.Notice("That item changed in the note. Refreshing.");
+      new import_obsidian4.Notice("That item changed in the note. Refreshing.");
       this.render();
     }
   }
@@ -716,10 +967,10 @@ var RunModeView = class extends import_obsidian3.ItemView {
       if (typeof v === "number") {
         const ctl = box.createDiv("rm-tracker-ctl");
         const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
-        (0, import_obsidian3.setIcon)(minus, "minus");
+        (0, import_obsidian4.setIcon)(minus, "minus");
         ctl.createSpan({ cls: "rm-tracker-value", text: t.max !== void 0 ? `${v}/${t.max}` : String(v) });
         const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
-        (0, import_obsidian3.setIcon)(plus, "plus");
+        (0, import_obsidian4.setIcon)(plus, "plus");
         const clamp = (n) => t.max !== void 0 ? Math.max(0, Math.min(t.max, n)) : n;
         minus.onclick = () => this.setTracker(session, t, clamp(v - 1));
         plus.onclick = () => this.setTracker(session, t, clamp(v + 1));
@@ -736,7 +987,7 @@ var RunModeView = class extends import_obsidian3.ItemView {
     }
   }
 };
-var SessionSuggest = class extends import_obsidian3.SuggestModal {
+var SessionSuggest = class extends import_obsidian4.SuggestModal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -746,7 +997,7 @@ var SessionSuggest = class extends import_obsidian3.SuggestModal {
     const all = this.view.sessions().reverse();
     const q = query.trim();
     if (!q) return all;
-    const match = (0, import_obsidian3.prepareFuzzySearch)(q);
+    const match = (0, import_obsidian4.prepareFuzzySearch)(q);
     return all.filter((f) => match(displayName(this.app, f)) || match(f.basename));
   }
   renderSuggestion(f, el) {
@@ -760,7 +1011,7 @@ var SessionSuggest = class extends import_obsidian3.SuggestModal {
 };
 
 // src/main.ts
-var RunModePlugin = class extends import_obsidian4.Plugin {
+var RunModePlugin = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };
