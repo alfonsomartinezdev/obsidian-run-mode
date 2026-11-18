@@ -8,6 +8,7 @@ export interface RunModeSettings {
   whoHere: string;
   toFind: string;
   leads: string;
+  clocks: string;
   playersKnow: string;
   dmOnly: string;
   campaignsRoot: string;
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: RunModeSettings = {
   whoHere: "Who's here, NPCs, People",
   toFind: "To find, Clues, Loot",
   leads: "Leads, Leads to, Exits",
+  clocks: "Clocks, Trackers",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
   campaignsRoot: "Campaigns",
@@ -84,6 +86,7 @@ export class RunModeSettingTab extends PluginSettingTab {
     text("Who's here", "Each linked name becomes a tappable chip.", "whoHere");
     text("To find", "Checklist items you can tick off at the table.", "toFind");
     text("Leads", "Links here are added to the scene's leads.", "leads");
+    text("Clocks", "Clocks in any note (scene, session, NPC, faction) go under this heading.", "clocks");
 
     new Setting(containerEl).setName("Character card headings").setHeading();
     text("Players know", "Shown in the blue box.", "playersKnow");

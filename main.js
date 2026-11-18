@@ -23,7 +23,7 @@ __export(main_exports, {
   default: () => RunModePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
@@ -34,6 +34,7 @@ var DEFAULT_SETTINGS = {
   whoHere: "Who's here, NPCs, People",
   toFind: "To find, Clues, Loot",
   leads: "Leads, Leads to, Exits",
+  clocks: "Clocks, Trackers",
   playersKnow: "Players know, Public, What players know",
   dmOnly: "DM only, GM only, Secrets, DM notes",
   campaignsRoot: "Campaigns",
@@ -78,6 +79,7 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
     text("Who's here", "Each linked name becomes a tappable chip.", "whoHere");
     text("To find", "Checklist items you can tick off at the table.", "toFind");
     text("Leads", "Links here are added to the scene's leads.", "leads");
+    text("Clocks", "Clocks in any note (scene, session, NPC, faction) go under this heading.", "clocks");
     new import_obsidian.Setting(containerEl).setName("Character card headings").setHeading();
     text("Players know", "Shown in the blue box.", "playersKnow");
     text("DM only", "Shown in the amber box.", "dmOnly");
@@ -85,10 +87,10 @@ var RunModeSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/view.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/card.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/notes.ts
 var STATUSES = [
@@ -193,100 +195,14 @@ function plainLine(line) {
   return line.replace(/^\s*([-*+]|\d+\.)\s+/, "").replace(/\*\*|__|\*|_/g, "").trim();
 }
 
-// src/card.ts
-var CardModal = class extends import_obsidian2.Modal {
-  constructor(app, plugin, file, openTarget) {
-    super(app);
-    this.plugin = plugin;
-    this.file = file;
-    this.openTarget = openTarget;
-    this.comp = new import_obsidian2.Component();
-  }
-  async onOpen() {
-    var _a, _b;
-    this.comp.load();
-    this.modalEl.addClass("rm-card-modal");
-    if (import_obsidian2.Platform.isMobile) this.modalEl.addClass("rm-sheet");
-    const el = this.contentEl;
-    el.empty();
-    el.addClass("rm-card");
-    const s = this.plugin.settings;
-    const fm = fmOf(this.app, this.file);
-    const md = (text, into) => import_obsidian2.MarkdownRenderer.render(this.app, text, into, this.file.path, this.comp);
-    const head = el.createDiv("rm-card-head");
-    const kicker = [fm.type, fm.role].filter(Boolean).map(String).join(" \xB7 ");
-    if (kicker) head.createSpan({ cls: "rm-kicker rm-accent", text: kicker });
-    head.createEl("h2", { cls: "rm-card-title", text: displayName(this.app, this.file) });
-    const tagline = (_b = (_a = fm.tagline) != null ? _a : fm.summary) != null ? _b : fm.description;
-    if (tagline) head.createSpan({ cls: "rm-card-tagline", text: String(tagline) });
-    const parsed = await parseNote(this.app, this.file);
-    const pk = findSection(parsed.sections, s.playersKnow);
-    const dm = findSection(parsed.sections, s.dmOnly);
-    const used = new Set([pk, dm].filter((x) => !!x));
-    if (parsed.preamble) await md(parsed.preamble, el.createDiv("rm-box rm-md"));
-    for (const [sec, cls, label] of [
-      [pk, "rm-pk", "Players know"],
-      [dm, "rm-dm", "DM only"]
-    ]) {
-      if (!sec || !sec.body) continue;
-      const box = el.createDiv(`rm-box ${cls}`);
-      box.createSpan({ cls: "rm-label", text: label });
-      await md(sec.body, box.createDiv("rm-md"));
-    }
-    if (fm.stats && typeof fm.stats === "object" && !Array.isArray(fm.stats)) {
-      const grid = el.createDiv("rm-stats");
-      for (const [k, v] of Object.entries(fm.stats)) {
-        const cell = grid.createDiv("rm-stat");
-        cell.createSpan({ cls: "rm-stat-name", text: k });
-        cell.createSpan({ cls: "rm-stat-value", text: String(v) });
-      }
-    }
-    for (const sec of parsed.sections) {
-      if (used.has(sec) || !sec.body) continue;
-      const det = el.createEl("details", { cls: "rm-more" });
-      det.createEl("summary", { text: sec.heading });
-      await md(sec.body, det.createDiv("rm-md"));
-    }
-    if (!parsed.preamble && !parsed.sections.length) {
-      el.createEl("p", { cls: "rm-empty", text: "This note is empty." });
-    }
-    const actions = el.createDiv("rm-card-actions");
-    const open = actions.createEl("button", { cls: "rm-btn", text: "Open full note" });
-    open.onclick = () => {
-      this.close();
-      this.app.workspace.getLeaf("tab").openFile(this.file);
-    };
-    el.addEventListener(
-      "click",
-      (e) => {
-        var _a2, _b2;
-        const a = e.target.closest("a.internal-link");
-        if (!a) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const href = (_b2 = (_a2 = a.getAttribute("data-href")) != null ? _a2 : a.getAttribute("href")) != null ? _b2 : "";
-        const target = resolveLink(this.app, href, this.file.path);
-        if (!target) return void new import_obsidian2.Notice(`No note named "${href}" yet.`);
-        this.close();
-        this.openTarget(target);
-      },
-      true
-    );
-  }
-  onClose() {
-    this.comp.unload();
-    this.contentEl.empty();
-  }
-};
+// src/clocks.ts
+var import_obsidian2 = require("obsidian");
 
 // src/trackers.ts
 var LINE_RE = /^(\s*[-*+]\s+)(?!\[[ xX]\])([^:]+?):\s*(.*?)\s*$/;
 var TRACKERS_TEMPLATE = [
-  "One tracker per line. A number gets \u2212 and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.",
+  "Campaign clocks, one per line. 2/6 is a six-segment clock with two filled; a plain number is a counter; yes/no is a toggle.",
   "",
-  "- Reputation: 0",
-  "- Clock: 0/6",
-  "- Secret found: no",
   ""
 ].join("\n");
 function parseValue(v) {
@@ -325,19 +241,374 @@ function setTrackerLine(line, value, max) {
   if (!m) return line;
   return `${m[1]}${m[2].trim()}: ${formatValue(value, max)}`;
 }
+var HEADING_RE = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+function normHeading(s) {
+  return s.toLowerCase().replace(/[’‘`]/g, "'").replace(/[:.]+$/, "").replace(/\s+/g, " ").trim();
+}
+function sectionRange(lines, names) {
+  const wanted = names.split(",").map(normHeading).filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(HEADING_RE);
+    if (!m || !wanted.includes(normHeading(m[2]))) continue;
+    const level = m[1].length;
+    let end = lines.length;
+    for (let j = i + 1; j < lines.length; j++) {
+      const h = lines[j].match(HEADING_RE);
+      if (h && h[1].length <= level) {
+        end = j;
+        break;
+      }
+    }
+    return { start: i, end };
+  }
+  return null;
+}
+function trackersInRange(lines, from, to) {
+  const out = [];
+  for (let i = from; i < to; i++) {
+    const m = lines[i].match(LINE_RE);
+    if (!m) continue;
+    const { value, max } = parseValue(m[3]);
+    out.push({ name: m[2].trim(), value, max, line: i, raw: lines[i] });
+  }
+  return out;
+}
+function trackersInSection(content, names) {
+  const lines = content.split("\n");
+  const r = sectionRange(lines, names);
+  return r ? trackersInRange(lines, r.start + 1, r.end) : [];
+}
+function addTrackerLine(content, line, names) {
+  const lines = content.replace(/\s+$/, "").split("\n");
+  if (!names) return [...lines, line, ""].join("\n");
+  const r = sectionRange(lines, names);
+  if (!r) {
+    const heading = names.split(",")[0].trim() || "Clocks";
+    return [...lines, "", `## ${heading}`, line, ""].join("\n");
+  }
+  let at = r.start + 1;
+  for (let i = r.start + 1; i < r.end; i++) if (lines[i].trim()) at = i + 1;
+  lines.splice(at, 0, line);
+  return lines.join("\n") + "\n";
+}
+function newTrackerLine(name, kind) {
+  if (kind === "counter") return `- ${name}: 0`;
+  if (kind === "toggle") return `- ${name}: no`;
+  return `- ${name}: 0/${kind}`;
+}
+
+// src/clocks.ts
+async function editLine(app, file, t, change) {
+  await app.vault.process(file, (data) => {
+    const lines = data.split("\n");
+    const idx = lines[t.line] === t.raw ? t.line : lines.indexOf(t.raw);
+    if (idx < 0) return data;
+    const next = change(lines[idx]);
+    if (next === null) lines.splice(idx, 1);
+    else lines[idx] = next;
+    return lines.join("\n");
+  });
+}
+function setTracker(app, file, t, value) {
+  return editLine(app, file, t, (line) => setTrackerLine(line, value, t.max));
+}
+function deleteTracker(app, file, t) {
+  return editLine(app, file, t, () => null);
+}
+function addTracker(app, file, name, kind, section) {
+  return app.vault.process(file, (data) => addTrackerLine(data, newTrackerLine(name, kind), section));
+}
+var SVG_NS = "http://www.w3.org/2000/svg";
+function clockSvg(filled, segments, size = 40) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 40 40");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("rm-clock-svg");
+  const c = 20;
+  const r = 17;
+  const n = Math.max(1, Math.min(24, segments));
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + i * 2 * Math.PI / n;
+    const a1 = a0 + 2 * Math.PI / n;
+    const el = n === 1 ? document.createElementNS(SVG_NS, "circle") : document.createElementNS(SVG_NS, "path");
+    if (n === 1) {
+      el.setAttribute("cx", String(c));
+      el.setAttribute("cy", String(c));
+      el.setAttribute("r", String(r));
+    } else {
+      const p = (a) => `${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
+      el.setAttribute("d", `M ${c} ${c} L ${p(a0)} A ${r} ${r} 0 0 1 ${p(a1)} Z`);
+    }
+    el.classList.add("rm-clock-seg");
+    if (i < filled) el.classList.add("is-filled");
+    svg.appendChild(el);
+  }
+  return svg;
+}
+function renderTile(parent, t, o) {
+  const { app, file } = o;
+  const done = async (p) => {
+    var _a;
+    await p;
+    (_a = o.onChanged) == null ? void 0 : _a.call(o);
+  };
+  const v = t.value;
+  const isClock = typeof v === "number" && t.max !== void 0 && t.max <= 24;
+  const full = isClock && v >= t.max;
+  const tile = parent.createDiv("rm-tile" + (full ? " is-full" : ""));
+  if (isClock) {
+    const pie = tile.createEl("button", {
+      cls: "rm-clock-btn",
+      attr: { "aria-label": `Fill a segment of ${t.name} (${v} of ${t.max})` }
+    });
+    pie.appendChild(clockSvg(v, t.max));
+    pie.onclick = () => {
+      if (v < t.max) done(setTracker(app, file, t, v + 1));
+    };
+  }
+  const info = tile.createEl("button", { cls: "rm-tile-info", attr: { "aria-label": `Options for ${t.name}` } });
+  info.createSpan({ cls: "rm-tile-name", text: t.name });
+  if (typeof v !== "boolean") info.createSpan({ cls: "rm-tile-value", text: v === "" ? "\u2013" : formatValue(v, t.max) });
+  if (typeof v === "number" && !isClock) {
+    const ctl = tile.createDiv("rm-tracker-ctl");
+    const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
+    (0, import_obsidian2.setIcon)(minus, "minus");
+    const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
+    (0, import_obsidian2.setIcon)(plus, "plus");
+    const clamp = (n) => t.max !== void 0 ? Math.max(0, Math.min(t.max, n)) : n;
+    minus.onclick = () => done(setTracker(app, file, t, clamp(v - 1)));
+    plus.onclick = () => done(setTracker(app, file, t, clamp(v + 1)));
+  } else if (typeof v === "boolean") {
+    const b = tile.createEl("button", {
+      cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
+      text: v ? "Yes" : "No",
+      attr: { "aria-pressed": String(v) }
+    });
+    b.onclick = () => done(setTracker(app, file, t, !v));
+  }
+  info.onclick = (evt) => {
+    const menu = new import_obsidian2.Menu();
+    if (typeof v === "number") {
+      menu.addItem(
+        (i) => i.setTitle(isClock ? "Clear one segment" : "Subtract one").setIcon("minus").onClick(() => done(setTracker(app, file, t, Math.max(isClock ? 0 : -Infinity, v - 1))))
+      );
+      menu.addItem((i) => i.setTitle("Reset to 0").setIcon("rotate-ccw").onClick(() => done(setTracker(app, file, t, 0))));
+    }
+    menu.addItem((i) => i.setTitle(`Open ${file.basename}`).setIcon("file-text").onClick(() => o.onOpenNote(file)));
+    menu.addItem(
+      (i) => i.setTitle("Delete").setIcon("trash").onClick(() => done(deleteTracker(app, file, t)))
+    );
+    menu.showAtMouseEvent(evt);
+  };
+}
+var KINDS = [
+  { kind: 4, label: "4" },
+  { kind: 6, label: "6" },
+  { kind: 8, label: "8" },
+  { kind: 12, label: "12" },
+  { kind: "counter", label: "Counter" },
+  { kind: "toggle", label: "Yes/No" }
+];
+var AddClockModal = class extends import_obsidian2.Modal {
+  constructor(app, scopes, onDone) {
+    super(app);
+    this.scopes = scopes;
+    this.onDone = onDone;
+    this.kind = 4;
+    this.scopeIndex = 0;
+  }
+  onOpen() {
+    this.modalEl.addClass("rm-name-modal");
+    const el = this.contentEl;
+    el.empty();
+    el.createEl("h3", { text: "New clock" });
+    const form = el.createEl("form", { cls: "rm-name-form" });
+    const input = form.createEl("input", {
+      type: "text",
+      attr: { placeholder: "e.g. Guards alerted", "aria-label": "Clock name" }
+    });
+    const chipRow = (label, items, get, set) => {
+      form.createSpan({ cls: "rm-label", text: label });
+      const row = form.createDiv("rm-chips");
+      const buttons = items.map((text, i) => {
+        const b = row.createEl("button", { cls: "rm-chip", text, attr: { type: "button" } });
+        b.onclick = () => {
+          set(i);
+          paint();
+        };
+        return b;
+      });
+      const paint = () => buttons.forEach((b, i) => {
+        b.toggleClass("is-on", i === get());
+        b.setAttr("aria-pressed", String(i === get()));
+      });
+      paint();
+    };
+    chipRow(
+      "Segments",
+      KINDS.map((k) => k.label),
+      () => KINDS.findIndex((k) => k.kind === this.kind),
+      (i) => this.kind = KINDS[i].kind
+    );
+    if (this.scopes.length > 1) {
+      chipRow(
+        "Belongs to",
+        this.scopes.map((s) => s.label),
+        () => this.scopeIndex,
+        (i) => this.scopeIndex = i
+      );
+    }
+    form.createEl("button", { cls: "mod-cta rm-btn", text: "Add clock", attr: { type: "submit" } });
+    form.onsubmit = async (e) => {
+      var _a;
+      e.preventDefault();
+      const name = input.value.trim().replace(/:/g, " -");
+      if (!name) return;
+      this.close();
+      await this.scopes[this.scopeIndex].add(name, this.kind);
+      (_a = this.onDone) == null ? void 0 : _a.call(this);
+    };
+    window.setTimeout(() => input.focus(), 50);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/card.ts
+var CardModal = class extends import_obsidian3.Modal {
+  constructor(app, plugin, file, openTarget) {
+    super(app);
+    this.plugin = plugin;
+    this.file = file;
+    this.openTarget = openTarget;
+    this.comp = null;
+    this.clickBound = false;
+  }
+  async onOpen() {
+    this.modalEl.addClass("rm-card-modal");
+    if (import_obsidian3.Platform.isMobile) this.modalEl.addClass("rm-sheet");
+    await this.draw();
+  }
+  /** Draws (or redraws, after a clock changes) the card. */
+  async draw() {
+    var _a, _b, _c;
+    (_a = this.comp) == null ? void 0 : _a.unload();
+    const comp = new import_obsidian3.Component();
+    comp.load();
+    this.comp = comp;
+    const el = this.contentEl;
+    el.empty();
+    el.addClass("rm-card");
+    const s = this.plugin.settings;
+    const fm = fmOf(this.app, this.file);
+    const md = (text, into) => import_obsidian3.MarkdownRenderer.render(this.app, text, into, this.file.path, comp);
+    const head = el.createDiv("rm-card-head");
+    const kicker = [fm.type, fm.role].filter(Boolean).map(String).join(" \xB7 ");
+    if (kicker) head.createSpan({ cls: "rm-kicker rm-accent", text: kicker });
+    head.createEl("h2", { cls: "rm-card-title", text: displayName(this.app, this.file) });
+    const tagline = (_c = (_b = fm.tagline) != null ? _b : fm.summary) != null ? _c : fm.description;
+    if (tagline) head.createSpan({ cls: "rm-card-tagline", text: String(tagline) });
+    const parsed = await parseNote(this.app, this.file);
+    const pk = findSection(parsed.sections, s.playersKnow);
+    const dm = findSection(parsed.sections, s.dmOnly);
+    const clocksSec = findSection(parsed.sections, s.clocks);
+    const used = new Set([pk, dm, clocksSec].filter((x) => !!x));
+    if (parsed.preamble) await md(parsed.preamble, el.createDiv("rm-box rm-md"));
+    for (const [sec, cls, label] of [
+      [pk, "rm-pk", "Players know"],
+      [dm, "rm-dm", "DM only"]
+    ]) {
+      if (!sec || !sec.body) continue;
+      const box = el.createDiv(`rm-box ${cls}`);
+      box.createSpan({ cls: "rm-label", text: label });
+      await md(sec.body, box.createDiv("rm-md"));
+    }
+    if (fm.stats && typeof fm.stats === "object" && !Array.isArray(fm.stats)) {
+      const grid = el.createDiv("rm-stats");
+      for (const [k, v] of Object.entries(fm.stats)) {
+        const cell = grid.createDiv("rm-stat");
+        cell.createSpan({ cls: "rm-stat-name", text: k });
+        cell.createSpan({ cls: "rm-stat-value", text: String(v) });
+      }
+    }
+    const clocks = trackersInSection(parsed.lines.join("\n"), s.clocks);
+    const clockBox = el.createDiv("rm-card-clocks");
+    if (clocks.length) clockBox.createSpan({ cls: "rm-label", text: "Clocks" });
+    const tiles = clockBox.createDiv("rm-card-tiles");
+    const redraw = () => window.setTimeout(() => this.draw(), 150);
+    for (const t of clocks) {
+      renderTile(tiles, t, {
+        app: this.app,
+        file: this.file,
+        onChanged: redraw,
+        onOpenNote: (f) => {
+          this.close();
+          this.app.workspace.getLeaf("tab").openFile(f);
+        }
+      });
+    }
+    for (const sec of parsed.sections) {
+      if (used.has(sec) || !sec.body) continue;
+      const det = el.createEl("details", { cls: "rm-more" });
+      det.createEl("summary", { text: sec.heading });
+      await md(sec.body, det.createDiv("rm-md"));
+    }
+    if (!parsed.preamble && !parsed.sections.length) {
+      el.createEl("p", { cls: "rm-empty", text: "This note is empty." });
+    }
+    const actions = el.createDiv("rm-card-actions");
+    const addClock = actions.createEl("button", { cls: "rm-btn", text: "Add clock" });
+    addClock.onclick = () => new AddClockModal(
+      this.app,
+      [{ label: this.file.basename, add: (n, k) => addTracker(this.app, this.file, n, k, s.clocks) }],
+      redraw
+    ).open();
+    const open = actions.createEl("button", { cls: "rm-btn", text: "Open full note" });
+    open.onclick = () => {
+      this.close();
+      this.app.workspace.getLeaf("tab").openFile(this.file);
+    };
+    if (this.clickBound) return;
+    this.clickBound = true;
+    el.addEventListener(
+      "click",
+      (e) => {
+        var _a2, _b2;
+        const a = e.target.closest("a.internal-link");
+        if (!a) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const href = (_b2 = (_a2 = a.getAttribute("data-href")) != null ? _a2 : a.getAttribute("href")) != null ? _b2 : "";
+        const target = resolveLink(this.app, href, this.file.path);
+        if (!target) return void new import_obsidian3.Notice(`No note named "${href}" yet.`);
+        this.close();
+        this.openTarget(target);
+      },
+      true
+    );
+  }
+  onClose() {
+    var _a;
+    (_a = this.comp) == null ? void 0 : _a.unload();
+    this.contentEl.empty();
+  }
+};
 
 // src/create.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // src/examples.ts
 var EXAMPLE_NOTES = [
   {
     "path": "Run Mode Example/Trackers.md",
-    "content": "One tracker per line. A number gets \u2212 and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.\n\n- Guild rep: 3\n- Alarm: 2/6\n- Ledger found: no\n"
+    "content": "Campaign clocks, one per line. 2/6 is a six-segment clock with two filled; a plain number is a counter; yes/no is a toggle.\n\n- Guild rep: 3\n- The Choir wakes: 2/8\n- Ledger found: no\n"
   },
   {
     "path": "Run Mode Example/Sessions/Example Session.md",
-    "content": '---\ntype: session\ncampaign: "[[A Crown of Salt]]"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n'
+    "content": '---\ntype: session\ncampaign: "[[A Crown of Salt]]"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n\n## Clocks\n- Guild suspicion: 1/6\n'
   },
   {
     "path": "Run Mode Example/Scenes/Ambush on Rope Street.md",
@@ -422,11 +693,14 @@ The stink hits before the door does. Six vats steam in the yard; one is covered 
 
 ## If it goes sideways
 Marra shouts for the dockhands. If the party threatens the vats, she folds and bargains instead.
+
+## Clocks
+- Marra calls the dockhands: 0/4
 `
   },
   {
     "path": "Run Mode Example/Characters/Captain Veyra Holt.md",
-    "content": "---\ntype: NPC\nrole: Harbourmaster\ntagline: Keeps Saltreach fed through the winter, whatever the guild says.\n---\n## Players know\nRuns the harbour. Owes nobody, or so she says.\n\n## DM only\nShe owes [[the Tidewardens]] more than she'll admit. If the party pushes, she'll trade the manifest for help with them.\n"
+    "content": "---\ntype: NPC\nrole: Harbourmaster\ntagline: Keeps Saltreach fed through the winter, whatever the guild says.\n---\n## Players know\nRuns the harbour. Owes nobody, or so she says.\n\n## DM only\nShe owes [[the Tidewardens]] more than she'll admit. If the party pushes, she'll trade the manifest for help with them.\n\n## Clocks\n- Debt to the Tidewardens: 3/8\n"
   },
   {
     "path": "Run Mode Example/Characters/Hollow Chorister.md",
@@ -439,7 +713,7 @@ Marra shouts for the dockhands. If the party threatens the vats, she folds and b
 ];
 
 // src/create.ts
-var NameModal = class extends import_obsidian3.Modal {
+var NameModal = class extends import_obsidian4.Modal {
   constructor(app, heading, placeholder, onSubmit) {
     super(app);
     this.heading = heading;
@@ -468,31 +742,31 @@ var NameModal = class extends import_obsidian3.Modal {
   }
 };
 async function ensureFolder(app, path) {
-  const parts = (0, import_obsidian3.normalizePath)(path).split("/").filter(Boolean);
+  const parts = (0, import_obsidian4.normalizePath)(path).split("/").filter(Boolean);
   let cur = "";
   for (const p of parts) {
     cur = cur ? `${cur}/${p}` : p;
     const existing = app.vault.getAbstractFileByPath(cur);
     if (!existing) await app.vault.createFolder(cur);
-    else if (!(existing instanceof import_obsidian3.TFolder)) throw new Error(`"${cur}" is a file, not a folder.`);
+    else if (!(existing instanceof import_obsidian4.TFolder)) throw new Error(`"${cur}" is a file, not a folder.`);
   }
 }
 async function createFolder(app, path) {
-  const p = (0, import_obsidian3.normalizePath)(path);
+  const p = (0, import_obsidian4.normalizePath)(path);
   if (app.vault.getAbstractFileByPath(p)) {
-    new import_obsidian3.Notice(`"${p}" already exists. Opening it.`);
+    new import_obsidian4.Notice(`"${p}" already exists. Opening it.`);
   } else {
     await ensureFolder(app, p);
   }
   return p;
 }
 async function createNote(app, folder, name, content) {
-  const dir = (0, import_obsidian3.normalizePath)(folder || "/");
+  const dir = (0, import_obsidian4.normalizePath)(folder || "/");
   if (dir !== "/") await ensureFolder(app, dir);
   const prefix = dir === "/" ? "" : `${dir}/`;
-  let path = (0, import_obsidian3.normalizePath)(`${prefix}${name}.md`);
+  let path = (0, import_obsidian4.normalizePath)(`${prefix}${name}.md`);
   for (let i = 2; app.vault.getAbstractFileByPath(path); i++) {
-    path = (0, import_obsidian3.normalizePath)(`${prefix}${name} ${i}.md`);
+    path = (0, import_obsidian4.normalizePath)(`${prefix}${name} ${i}.md`);
   }
   return app.vault.create(path, content);
 }
@@ -530,9 +804,9 @@ async function addExample(app, root) {
   let session = null;
   let skipped = 0;
   for (const note of EXAMPLE_NOTES) {
-    const n = { ...note, path: (0, import_obsidian3.normalizePath)(root ? `${root}/${note.path}` : note.path) };
+    const n = { ...note, path: (0, import_obsidian4.normalizePath)(root ? `${root}/${note.path}` : note.path) };
     const existing = app.vault.getAbstractFileByPath(n.path);
-    if (existing instanceof import_obsidian3.TFile) {
+    if (existing instanceof import_obsidian4.TFile) {
       skipped++;
       if (n.path.endsWith("Example Session.md")) session = existing;
       continue;
@@ -541,7 +815,7 @@ async function addExample(app, root) {
     const f = await app.vault.create(n.path, n.content);
     if (n.path.endsWith("Example Session.md")) session = f;
   }
-  new import_obsidian3.Notice(
+  new import_obsidian4.Notice(
     skipped === EXAMPLE_NOTES.length ? "The example campaign is already in your vault." : 'Added an example campaign in the "Run Mode Example" folder. Delete it whenever you like.'
   );
   return session;
@@ -552,7 +826,7 @@ var VIEW_TYPE = "run-mode-view";
 function joinPath(...parts) {
   return parts.map((p) => p.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean).join("/");
 }
-var RunModeView = class extends import_obsidian4.ItemView {
+var RunModeView = class extends import_obsidian5.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -624,7 +898,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
     const src = this.st.mode === "scene" && this.st.scenePath || this.st.sessionPath || "";
     const f = resolveLink(this.app, href, src);
     if (f) this.openTarget(f);
-    else new import_obsidian4.Notice(`No note named "${href}" yet.`);
+    else new import_obsidian5.Notice(`No note named "${href}" yet.`);
   }
   openTarget(file) {
     if (noteType(this.app, file) === this.plugin.settings.sceneType) {
@@ -685,7 +959,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
       const s = this.plugin.settings;
       const folder = joinPath(this.campaignOf(session), s.sceneFolder);
       const f = await createNote(this.app, folder, name, sceneContent(s.sceneType, session.basename));
-      new import_obsidian4.Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
+      new import_obsidian5.Notice(`Created "${f.basename}". Fill it in, then come back to Run mode.`);
       this.app.workspace.getLeaf("tab").openFile(f);
     }).open();
   }
@@ -699,11 +973,11 @@ var RunModeView = class extends import_obsidian4.ItemView {
   /** The campaigns folder, matched without caring about capitals ("campaigns" finds "Campaigns"). */
   campaignsRoot() {
     const wanted = joinPath(this.plugin.settings.campaignsRoot);
-    if (!wanted || this.app.vault.getAbstractFileByPath(wanted) instanceof import_obsidian4.TFolder) return wanted;
+    if (!wanted || this.app.vault.getAbstractFileByPath(wanted) instanceof import_obsidian5.TFolder) return wanted;
     let cur = this.app.vault.getRoot();
     for (const part of wanted.split("/")) {
       const next = cur.children.find(
-        (c) => c instanceof import_obsidian4.TFolder && c.name.toLowerCase() === part.toLowerCase()
+        (c) => c instanceof import_obsidian5.TFolder && c.name.toLowerCase() === part.toLowerCase()
       );
       if (!next) return wanted;
       cur = next;
@@ -724,12 +998,12 @@ var RunModeView = class extends import_obsidian4.ItemView {
   campaignFolders() {
     const root = this.campaignsRoot();
     const base = root ? this.app.vault.getAbstractFileByPath(root) : this.app.vault.getRoot();
-    if (!(base instanceof import_obsidian4.TFolder)) return [];
-    return base.children.filter((c) => c instanceof import_obsidian4.TFolder && !c.name.startsWith(".")).sort((a, b) => a.name.localeCompare(b.name, void 0, { numeric: true }));
+    if (!(base instanceof import_obsidian5.TFolder)) return [];
+    return base.children.filter((c) => c instanceof import_obsidian5.TFolder && !c.name.startsWith(".")).sort((a, b) => a.name.localeCompare(b.name, void 0, { numeric: true }));
   }
   getFile(p) {
     const f = p ? this.app.vault.getAbstractFileByPath(p) : null;
-    return f instanceof import_obsidian4.TFile ? f : null;
+    return f instanceof import_obsidian5.TFile ? f : null;
   }
   /** All session notes, or only those in one campaign. */
   sessions(campaign) {
@@ -742,7 +1016,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
   currentCampaign() {
     if (this.st.campaignPath !== void 0) return this.st.campaignPath;
     const remembered = this.plugin.settings.lastCampaign;
-    if (remembered !== null && (remembered === "" || this.app.vault.getAbstractFileByPath(remembered) instanceof import_obsidian4.TFolder)) {
+    if (remembered !== null && (remembered === "" || this.app.vault.getAbstractFileByPath(remembered) instanceof import_obsidian5.TFolder)) {
       return remembered;
     }
     const last = this.getFile(this.plugin.settings.lastSession);
@@ -802,7 +1076,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
   async render(resetScroll = false) {
     var _a, _b;
     const token = ++this.renderToken;
-    const comp = new import_obsidian4.Component();
+    const comp = new import_obsidian5.Component();
     this.addChild(comp);
     const root = createDiv({ cls: "rm-view" });
     const oldScroll = (_b = (_a = this.contentEl.querySelector(".rm-scroll")) == null ? void 0 : _a.scrollTop) != null ? _b : 0;
@@ -822,12 +1096,13 @@ var RunModeView = class extends import_obsidian4.ItemView {
         void this.plugin.saveSettings();
       }
       const sceneFile = this.st.mode === "scene" && this.st.scenePath ? this.app.vault.getAbstractFileByPath(this.st.scenePath) : null;
-      if (sceneFile instanceof import_obsidian4.TFile) await this.renderScene(root, comp, session, sceneFile);
+      const inScene = sceneFile instanceof import_obsidian5.TFile ? sceneFile : null;
+      if (inScene) await this.renderScene(root, comp, session, inScene);
       else {
         this.st.mode = "board";
         this.renderBoard(root, session);
       }
-      await this.renderTrackers(root, session);
+      await this.renderTrackers(root, session, inScene);
     }
     if (token !== this.renderToken) {
       this.removeChild(comp);
@@ -846,7 +1121,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
    * Measure how much it covers and pad the view so the trackers sit above it.
    */
   fitAboveToolbar() {
-    if (!import_obsidian4.Platform.isMobile) return;
+    if (!import_obsidian5.Platform.isMobile) return;
     window.requestAnimationFrame(() => {
       const view = this.contentEl.querySelector(".rm-view");
       if (!view) return;
@@ -862,13 +1137,13 @@ var RunModeView = class extends import_obsidian4.ItemView {
           }
         });
       }
-      if (!found && import_obsidian4.Platform.isPhone) covered = 80;
+      if (!found && import_obsidian5.Platform.isPhone) covered = 80;
       view.style.paddingBottom = covered > 0 ? `${Math.ceil(covered) + 8}px` : "";
     });
   }
   backToCampaigns(head) {
     const back = head.createEl("button", { cls: "rm-back" });
-    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
+    (0, import_obsidian5.setIcon)(back.createSpan(), "chevron-left");
     back.createSpan({ text: "Campaigns" });
     back.onclick = () => this.toCampaigns();
   }
@@ -904,7 +1179,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
     }
     const add = scroll.createDiv("rm-add-row");
     const create = add.createEl("button", { cls: "rm-btn mod-cta" });
-    (0, import_obsidian4.setIcon)(create.createSpan(), "plus");
+    (0, import_obsidian5.setIcon)(create.createSpan(), "plus");
     create.createSpan({ text: "New campaign" });
     create.onclick = () => this.newCampaign();
     const example = add.createEl("button", { cls: "rm-btn", text: "Add example campaign" });
@@ -931,14 +1206,14 @@ var RunModeView = class extends import_obsidian4.ItemView {
     const head = root.createDiv("rm-head");
     const campaign = this.campaignOf(session);
     const back = head.createEl("button", { cls: "rm-back" });
-    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
+    (0, import_obsidian5.setIcon)(back.createSpan(), "chevron-left");
     back.createSpan({ text: campaign ? this.campaignName(campaign) : linkLabel((_a = fm.campaign) != null ? _a : "Campaigns") });
     back.onclick = () => this.toCampaigns();
     const row = head.createDiv("rm-title-row");
     const col = row.createDiv("rm-title-col");
     col.createEl("h1", { cls: "rm-title", text: displayName(this.app, session) });
     const sw = row.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Switch session" } });
-    (0, import_obsidian4.setIcon)(sw, "list");
+    (0, import_obsidian5.setIcon)(sw, "list");
     sw.onclick = () => new SessionSuggest(this.app, this).open();
     this.renderSearch(head);
     const scenes = this.scenesFor(session).map((f) => ({ f, status: normStatus(fmOf(this.app, f).status) }));
@@ -981,7 +1256,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
     }
     const add = scroll.createDiv("rm-add-row");
     const newScene = add.createEl("button", { cls: "rm-btn mod-cta" });
-    (0, import_obsidian4.setIcon)(newScene.createSpan(), "plus");
+    (0, import_obsidian5.setIcon)(newScene.createSpan(), "plus");
     newScene.createSpan({ text: "New scene" });
     newScene.onclick = () => this.newScene(session);
     const newSession = add.createEl("button", { cls: "rm-btn", text: "New session" });
@@ -989,7 +1264,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
   }
   renderSearch(head) {
     const wrap = head.createDiv("rm-search");
-    (0, import_obsidian4.setIcon)(wrap.createSpan("rm-search-icon"), "search");
+    (0, import_obsidian5.setIcon)(wrap.createSpan("rm-search-icon"), "search");
     const input = wrap.createEl("input", {
       type: "search",
       attr: { placeholder: "Jump to any NPC, place, scene\u2026", "aria-label": "Search notes" }
@@ -1009,7 +1284,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
     results.empty();
     const q = input.value.trim();
     if (!q) return;
-    const match = (0, import_obsidian4.prepareFuzzySearch)(q);
+    const match = (0, import_obsidian5.prepareFuzzySearch)(q);
     const hits = [];
     for (const f of this.app.vault.getMarkdownFiles()) {
       let best = null;
@@ -1040,15 +1315,15 @@ var RunModeView = class extends import_obsidian4.ItemView {
     const fm = fmOf(this.app, scene);
     const status = normStatus(fm.status);
     const parsed = await parseNote(this.app, scene);
-    const md = (text, into) => import_obsidian4.MarkdownRenderer.render(this.app, text, into, scene.path, comp);
+    const md = (text, into) => import_obsidian5.MarkdownRenderer.render(this.app, text, into, scene.path, comp);
     const head = root.createDiv("rm-head");
     const nav = head.createDiv("rm-title-row");
     const back = nav.createEl("button", { cls: "rm-back" });
-    (0, import_obsidian4.setIcon)(back.createSpan(), "chevron-left");
+    (0, import_obsidian5.setIcon)(back.createSpan(), "chevron-left");
     back.createSpan({ text: "Board" });
     back.onclick = () => this.toBoard();
     const edit = nav.createEl("button", { cls: "rm-icon-btn", attr: { "aria-label": "Edit this scene's note" } });
-    (0, import_obsidian4.setIcon)(edit, "pencil");
+    (0, import_obsidian5.setIcon)(edit, "pencil");
     edit.onclick = () => this.editNote(scene);
     const col = head.createDiv("rm-title-col");
     const place = (_a = fm.place) != null ? _a : fm.location;
@@ -1099,7 +1374,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
           chip.onclick = () => {
             const f = resolveLink(this.app, l.target, scene.path);
             if (f) this.openTarget(f);
-            else new import_obsidian4.Notice(`No note named "${l.target}" yet.`);
+            else new import_obsidian5.Notice(`No note named "${l.target}" yet.`);
           };
         }
       }
@@ -1119,6 +1394,7 @@ var RunModeView = class extends import_obsidian4.ItemView {
       }
     }
     take(s.leads);
+    take(s.clocks);
     const leads = this.leadsOf(scene, parsed.sections);
     if (leads.length) {
       const block = body.createDiv("rm-block");
@@ -1157,77 +1433,60 @@ var RunModeView = class extends import_obsidian4.ItemView {
       return lines.join("\n");
     });
     if (missing) {
-      new import_obsidian4.Notice("That item changed in the note. Refreshing.");
+      new import_obsidian5.Notice("That item changed in the note. Refreshing.");
       this.render();
     }
   }
-  // ---------- trackers ----------
-  /** Each campaign keeps its trackers in one plain note, e.g. "My Campaign/Trackers.md". */
+  // ---------- clocks & trackers ----------
+  /** Campaign clocks live in one plain note per campaign, e.g. "My Campaign/Trackers.md". */
   trackersPath(session) {
     const name = (this.plugin.settings.trackersNote || "Trackers").replace(/\.md$/i, "");
     return joinPath(this.campaignOf(session), `${name}.md`);
   }
-  async createTrackers(session) {
+  async campaignTrackersFile(session) {
+    var _a;
     const path = this.trackersPath(session);
-    const existing = this.getFile(path);
-    const file = existing != null ? existing : await this.app.vault.create(path, TRACKERS_TEMPLATE);
-    this.editNote(file);
+    return (_a = this.getFile(path)) != null ? _a : await this.app.vault.create(path, TRACKERS_TEMPLATE);
   }
-  async setTracker(file, t, value) {
-    await this.app.vault.process(file, (data) => {
-      const lines = data.split("\n");
-      const idx = lines[t.line] === t.raw ? t.line : lines.indexOf(t.raw);
-      if (idx < 0) return data;
-      lines[idx] = setTrackerLine(lines[idx], value, t.max);
-      return lines.join("\n");
+  clockScopes(session, scene) {
+    const sec = this.plugin.settings.clocks;
+    const scopes = [];
+    if (scene) scopes.push({ label: "Scene", add: (n, k) => addTracker(this.app, scene, n, k, sec) });
+    scopes.push({ label: "Session", add: (n, k) => addTracker(this.app, session, n, k, sec) });
+    scopes.push({
+      label: "Campaign",
+      add: async (n, k) => addTracker(this.app, await this.campaignTrackersFile(session), n, k)
     });
+    return scopes;
   }
-  async renderTrackers(root, session) {
+  async renderTrackers(root, session, scene) {
+    const sec = this.plugin.settings.clocks;
+    const read = (f) => this.app.vault.cachedRead(f);
+    const groups = [];
+    if (scene) groups.push({ label: "Scene", file: scene, trackers: trackersInSection(await read(scene), sec) });
+    groups.push({ label: "Session", file: session, trackers: trackersInSection(await read(session), sec) });
+    const camp = this.getFile(this.trackersPath(session));
+    if (camp) groups.push({ label: "Campaign", file: camp, trackers: parseTrackers(await read(camp)) });
     const bar = root.createDiv("rm-trackers");
-    const file = this.getFile(this.trackersPath(session));
-    if (!file) {
-      const add = bar.createEl("button", { cls: "rm-btn rm-add-trackers" });
-      (0, import_obsidian4.setIcon)(add.createSpan(), "plus");
-      add.createSpan({ text: "Add trackers" });
-      add.onclick = () => this.createTrackers(session);
-      return;
-    }
-    const trackers = parseTrackers(await this.app.vault.cachedRead(file));
     const row = bar.createDiv("rm-tracker-row");
-    if (!trackers.length) {
-      row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No trackers yet. Tap the pencil to add some." });
-    }
-    for (const t of trackers) {
-      const box = row.createDiv("rm-tracker");
-      box.createSpan({ cls: "rm-tracker-name", text: t.name });
-      const v = t.value;
-      if (typeof v === "number") {
-        const ctl = box.createDiv("rm-tracker-ctl");
-        const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
-        (0, import_obsidian4.setIcon)(minus, "minus");
-        ctl.createSpan({ cls: "rm-tracker-value", text: formatValue(v, t.max) });
-        const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
-        (0, import_obsidian4.setIcon)(plus, "plus");
-        const clamp = (n) => t.max !== void 0 ? Math.max(0, Math.min(t.max, n)) : n;
-        minus.onclick = () => this.setTracker(file, t, clamp(v - 1));
-        plus.onclick = () => this.setTracker(file, t, clamp(v + 1));
-      } else if (typeof v === "boolean") {
-        const b = box.createEl("button", {
-          cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
-          text: v ? "Yes" : "No",
-          attr: { "aria-pressed": String(v) }
-        });
-        b.onclick = () => this.setTracker(file, t, !v);
-      } else {
-        box.createSpan({ cls: "rm-tracker-value", text: v || "\u2013" });
+    let total = 0;
+    for (const g of groups) {
+      if (!g.trackers.length) continue;
+      total += g.trackers.length;
+      const group = row.createDiv("rm-tile-group");
+      group.createSpan({ cls: "rm-tile-group-label", text: g.label });
+      const tiles = group.createDiv("rm-tile-row");
+      for (const t of g.trackers) {
+        renderTile(tiles, t, { app: this.app, file: g.file, onOpenNote: (f) => this.editNote(f) });
       }
     }
-    const edit = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Edit trackers" } });
-    (0, import_obsidian4.setIcon)(edit, "pencil");
-    edit.onclick = () => this.editNote(file);
+    if (!total) row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No clocks yet." });
+    const add = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Add a clock" } });
+    (0, import_obsidian5.setIcon)(add, "plus");
+    add.onclick = () => new AddClockModal(this.app, this.clockScopes(session, scene)).open();
   }
 };
-var SessionSuggest = class extends import_obsidian4.SuggestModal {
+var SessionSuggest = class extends import_obsidian5.SuggestModal {
   constructor(app, view) {
     super(app);
     this.view = view;
@@ -1237,7 +1496,7 @@ var SessionSuggest = class extends import_obsidian4.SuggestModal {
     const all = this.view.sessionsHere().reverse();
     const q = query.trim();
     if (!q) return all;
-    const match = (0, import_obsidian4.prepareFuzzySearch)(q);
+    const match = (0, import_obsidian5.prepareFuzzySearch)(q);
     return all.filter((f) => match(displayName(this.app, f)) || match(f.basename));
   }
   renderSuggestion(f, el) {
@@ -1251,7 +1510,7 @@ var SessionSuggest = class extends import_obsidian4.SuggestModal {
 };
 
 // src/main.ts
-var RunModePlugin = class extends import_obsidian5.Plugin {
+var RunModePlugin = class extends import_obsidian6.Plugin {
   constructor() {
     super(...arguments);
     this.settings = { ...DEFAULT_SETTINGS };

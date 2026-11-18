@@ -2,11 +2,11 @@
 export const EXAMPLE_NOTES: { path: string; content: string }[] = [
   {
     "path": "Run Mode Example/Trackers.md",
-    "content": "One tracker per line. A number gets − and + buttons, a number with a cap like 2/6 stops at the cap, and yes/no becomes a toggle.\n\n- Guild rep: 3\n- Alarm: 2/6\n- Ledger found: no\n"
+    "content": "Campaign clocks, one per line. 2/6 is a six-segment clock with two filled; a plain number is a counter; yes/no is a toggle.\n\n- Guild rep: 3\n- The Choir wakes: 2/8\n- Ledger found: no\n"
   },
   {
     "path": "Run Mode Example/Sessions/Example Session.md",
-    "content": "---\ntype: session\ncampaign: \"[[A Crown of Salt]]\"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n"
+    "content": "---\ntype: session\ncampaign: \"[[A Crown of Salt]]\"\nstatus: next\n---\nPrep for the night. Scenes join this session by linking back to it in their `session` property.\n\n## Clocks\n- Guild suspicion: 1/6\n"
   },
   {
     "path": "Run Mode Example/Scenes/Ambush on Rope Street.md",
@@ -22,11 +22,11 @@ export const EXAMPLE_NOTES: { path: string; content: string }[] = [
   },
   {
     "path": "Run Mode Example/Scenes/The Tannery.md",
-    "content": "---\ntype: scene\nsession: \"[[Example Session]]\"\nstatus: in-play\nplace: Docks district\nhook: The smuggler's ledger is hidden in a vat nobody will touch.\nleads:\n  - \"[[Harbourmaster's Office]]\"\n  - \"[[Ambush on Rope Street]]\"\n---\n## Read aloud\nThe stink hits before the door does. Six vats steam in the yard; one is covered with a tarp and chained.\n\n## Who's here\n- [[Old Marra]]\n- 2 dockhands, bored and armed with hooks\n\n## To find\n- [ ] Chain key on Marra's belt\n- [ ] The ledger, under the tarp\n\n## If it goes sideways\nMarra shouts for the dockhands. If the party threatens the vats, she folds and bargains instead.\n"
+    "content": "---\ntype: scene\nsession: \"[[Example Session]]\"\nstatus: in-play\nplace: Docks district\nhook: The smuggler's ledger is hidden in a vat nobody will touch.\nleads:\n  - \"[[Harbourmaster's Office]]\"\n  - \"[[Ambush on Rope Street]]\"\n---\n## Read aloud\nThe stink hits before the door does. Six vats steam in the yard; one is covered with a tarp and chained.\n\n## Who's here\n- [[Old Marra]]\n- 2 dockhands, bored and armed with hooks\n\n## To find\n- [ ] Chain key on Marra's belt\n- [ ] The ledger, under the tarp\n\n## If it goes sideways\nMarra shouts for the dockhands. If the party threatens the vats, she folds and bargains instead.\n\n## Clocks\n- Marra calls the dockhands: 0/4\n"
   },
   {
     "path": "Run Mode Example/Characters/Captain Veyra Holt.md",
-    "content": "---\ntype: NPC\nrole: Harbourmaster\ntagline: Keeps Saltreach fed through the winter, whatever the guild says.\n---\n## Players know\nRuns the harbour. Owes nobody, or so she says.\n\n## DM only\nShe owes [[the Tidewardens]] more than she'll admit. If the party pushes, she'll trade the manifest for help with them.\n"
+    "content": "---\ntype: NPC\nrole: Harbourmaster\ntagline: Keeps Saltreach fed through the winter, whatever the guild says.\n---\n## Players know\nRuns the harbour. Owes nobody, or so she says.\n\n## DM only\nShe owes [[the Tidewardens]] more than she'll admit. If the party pushes, she'll trade the manifest for help with them.\n\n## Clocks\n- Debt to the Tidewardens: 3/8\n"
   },
   {
     "path": "Run Mode Example/Characters/Hollow Chorister.md",

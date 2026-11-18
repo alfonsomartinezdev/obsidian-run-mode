@@ -2,9 +2,12 @@
 import { App, Component, MarkdownRenderer, Modal, Notice, Platform, TFile } from "obsidian";
 import type RunModePlugin from "./main";
 import { displayName, findSection, fmOf, parseNote, resolveLink, Section } from "./notes";
+import { AddClockModal, addTracker, renderTile } from "./clocks";
+import { trackersInSection } from "./trackers";
 
 export class CardModal extends Modal {
-  private comp = new Component();
+  private comp: Component | null = null;
+  private clickBound = false;
 
   constructor(
     app: App,
@@ -16,9 +19,17 @@ export class CardModal extends Modal {
   }
 
   async onOpen() {
-    this.comp.load();
     this.modalEl.addClass("rm-card-modal");
     if (Platform.isMobile) this.modalEl.addClass("rm-sheet");
+    await this.draw();
+  }
+
+  /** Draws (or redraws, after a clock changes) the card. */
+  private async draw() {
+    this.comp?.unload();
+    const comp = new Component();
+    comp.load();
+    this.comp = comp;
 
     const el = this.contentEl;
     el.empty();
@@ -26,7 +37,7 @@ export class CardModal extends Modal {
     const s = this.plugin.settings;
     const fm = fmOf(this.app, this.file);
     const md = (text: string, into: HTMLElement) =>
-      MarkdownRenderer.render(this.app, text, into, this.file.path, this.comp);
+      MarkdownRenderer.render(this.app, text, into, this.file.path, comp);
 
     const head = el.createDiv("rm-card-head");
     const kicker = [fm.type, fm.role].filter(Boolean).map(String).join(" · ");
@@ -38,7 +49,8 @@ export class CardModal extends Modal {
     const parsed = await parseNote(this.app, this.file);
     const pk = findSection(parsed.sections, s.playersKnow);
     const dm = findSection(parsed.sections, s.dmOnly);
-    const used = new Set<Section>([pk, dm].filter((x): x is Section => !!x));
+    const clocksSec = findSection(parsed.sections, s.clocks);
+    const used = new Set<Section>([pk, dm, clocksSec].filter((x): x is Section => !!x));
 
     if (parsed.preamble) await md(parsed.preamble, el.createDiv("rm-box rm-md"));
 
@@ -61,6 +73,24 @@ export class CardModal extends Modal {
       }
     }
 
+    // Clocks on this note (a faction's plans, an NPC's patience…)
+    const clocks = trackersInSection(parsed.lines.join("\n"), s.clocks);
+    const clockBox = el.createDiv("rm-card-clocks");
+    if (clocks.length) clockBox.createSpan({ cls: "rm-label", text: "Clocks" });
+    const tiles = clockBox.createDiv("rm-card-tiles");
+    const redraw = () => window.setTimeout(() => this.draw(), 150);
+    for (const t of clocks) {
+      renderTile(tiles, t, {
+        app: this.app,
+        file: this.file,
+        onChanged: redraw,
+        onOpenNote: (f) => {
+          this.close();
+          this.app.workspace.getLeaf("tab").openFile(f);
+        },
+      });
+    }
+
     for (const sec of parsed.sections) {
       if (used.has(sec) || !sec.body) continue;
       const det = el.createEl("details", { cls: "rm-more" });
@@ -73,6 +103,13 @@ export class CardModal extends Modal {
     }
 
     const actions = el.createDiv("rm-card-actions");
+    const addClock = actions.createEl("button", { cls: "rm-btn", text: "Add clock" });
+    addClock.onclick = () =>
+      new AddClockModal(
+        this.app,
+        [{ label: this.file.basename, add: (n, k) => addTracker(this.app, this.file, n, k, s.clocks) }],
+        redraw,
+      ).open();
     const open = actions.createEl("button", { cls: "rm-btn", text: "Open full note" });
     open.onclick = () => {
       this.close();
@@ -80,6 +117,8 @@ export class CardModal extends Modal {
     };
 
     // Links inside the card open their own card instead of leaving Run mode.
+    if (this.clickBound) return;
+    this.clickBound = true;
     el.addEventListener(
       "click",
       (e: MouseEvent) => {
@@ -98,7 +137,7 @@ export class CardModal extends Modal {
   }
 
   onClose() {
-    this.comp.unload();
+    this.comp?.unload();
     this.contentEl.empty();
   }
 }

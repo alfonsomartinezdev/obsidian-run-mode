@@ -37,18 +37,22 @@ type: session
 status: next          # the session marked "next" opens by default
 ```
 
-### Trackers note
+### Clocks
 
-Each campaign has a note called `Trackers` (tap **Add trackers** in Run mode to create it). One tracker per line:
+Clocks work like Blades in the Dark: start one whenever the fiction calls for it, at whatever level it belongs.
+
+- **Scene, session, NPC or faction clocks** go in a `## Clocks` section of that note.
+- **Campaign clocks** go in the campaign's `Trackers` note.
+
+One per line:
 
 ```
-- Guild rep: 3        # − and + buttons
-- Alarm: 2/6          # stops at the cap
-- Ledger found: no    # yes/no toggle
-- Weather: storm      # shown as text
+- Guards alerted: 1/4   # a 4-segment clock, one filled
+- Guild rep: 3          # a counter with − and +
+- Ledger found: no      # a yes/no toggle
 ```
 
-Edit it like any note. The pencil on the trackers bar opens it.
+In Run mode, the bar at the bottom shows the current scene's clocks, then the session's, then the campaign's. Tap a clock to fill a segment, tap its name for more (clear a segment, reset, open its note, delete), and tap **+** to start a new one. Character and faction cards show their own clocks too.
 
 ### Scene note
 
@@ -70,6 +74,7 @@ Headings Run mode understands in a scene:
 | `## Who's here` | Each `[[link]]` becomes a tappable chip that opens a card |
 | `## To find` | `- [ ]` checkboxes you can tick during play (saved to the note) |
 | `## Leads` | Links added to the "Leads to" buttons |
+| `## Clocks` | Shown in the bottom bar while you're in the scene |
 | Any other heading | Collapsible section, closed by default |
 
 ### Character, monster, place or item note

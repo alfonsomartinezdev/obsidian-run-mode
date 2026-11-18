@@ -16,7 +16,8 @@ import {
 } from "obsidian";
 import type RunModePlugin from "./main";
 import { CardModal } from "./card";
-import { formatValue, parseTrackers, setTrackerLine, Tracker, TRACKERS_TEMPLATE } from "./trackers";
+import { parseTrackers, Tracker, trackersInSection, TRACKERS_TEMPLATE } from "./trackers";
+import { AddClockModal, addTracker, ClockScope, renderTile } from "./clocks";
 import { addExample, createFolder, createNote, NameModal, sceneContent, sessionContent } from "./create";
 import {
   aliasesOf,
@@ -365,12 +366,13 @@ export class RunModeView extends ItemView {
         this.st.mode === "scene" && this.st.scenePath
           ? this.app.vault.getAbstractFileByPath(this.st.scenePath)
           : null;
-      if (sceneFile instanceof TFile) await this.renderScene(root, comp, session, sceneFile);
+      const inScene = sceneFile instanceof TFile ? sceneFile : null;
+      if (inScene) await this.renderScene(root, comp, session, inScene);
       else {
         this.st.mode = "board";
         this.renderBoard(root, session);
       }
-      await this.renderTrackers(root, session);
+      await this.renderTrackers(root, session, inScene);
     }
 
     if (token !== this.renderToken) {
@@ -699,6 +701,7 @@ export class RunModeView extends ItemView {
     }
 
     take(s.leads);
+    take(s.clocks);
     const leads = this.leadsOf(scene, parsed.sections);
     if (leads.length) {
       const block = body.createDiv("rm-block");
@@ -745,75 +748,58 @@ export class RunModeView extends ItemView {
     }
   }
 
-  // ---------- trackers ----------
+  // ---------- clocks & trackers ----------
 
-  /** Each campaign keeps its trackers in one plain note, e.g. "My Campaign/Trackers.md". */
+  /** Campaign clocks live in one plain note per campaign, e.g. "My Campaign/Trackers.md". */
   private trackersPath(session: TFile): string {
     const name = (this.plugin.settings.trackersNote || "Trackers").replace(/\.md$/i, "");
     return joinPath(this.campaignOf(session), `${name}.md`);
   }
 
-  private async createTrackers(session: TFile) {
+  private async campaignTrackersFile(session: TFile): Promise<TFile> {
     const path = this.trackersPath(session);
-    const existing = this.getFile(path);
-    const file = existing ?? (await this.app.vault.create(path, TRACKERS_TEMPLATE));
-    this.editNote(file);
+    return this.getFile(path) ?? (await this.app.vault.create(path, TRACKERS_TEMPLATE));
   }
 
-  private async setTracker(file: TFile, t: Tracker, value: number | boolean | string) {
-    await this.app.vault.process(file, (data) => {
-      const lines = data.split("\n");
-      const idx = lines[t.line] === t.raw ? t.line : lines.indexOf(t.raw);
-      if (idx < 0) return data;
-      lines[idx] = setTrackerLine(lines[idx], value, t.max);
-      return lines.join("\n");
+  private clockScopes(session: TFile, scene: TFile | null): ClockScope[] {
+    const sec = this.plugin.settings.clocks;
+    const scopes: ClockScope[] = [];
+    if (scene) scopes.push({ label: "Scene", add: (n, k) => addTracker(this.app, scene, n, k, sec) });
+    scopes.push({ label: "Session", add: (n, k) => addTracker(this.app, session, n, k, sec) });
+    scopes.push({
+      label: "Campaign",
+      add: async (n, k) => addTracker(this.app, await this.campaignTrackersFile(session), n, k),
     });
+    return scopes;
   }
 
-  private async renderTrackers(root: HTMLElement, session: TFile) {
-    const bar = root.createDiv("rm-trackers");
-    const file = this.getFile(this.trackersPath(session));
-    if (!file) {
-      const add = bar.createEl("button", { cls: "rm-btn rm-add-trackers" });
-      setIcon(add.createSpan(), "plus");
-      add.createSpan({ text: "Add trackers" });
-      add.onclick = () => this.createTrackers(session);
-      return;
-    }
+  private async renderTrackers(root: HTMLElement, session: TFile, scene: TFile | null) {
+    const sec = this.plugin.settings.clocks;
+    const read = (f: TFile) => this.app.vault.cachedRead(f);
+    const groups: { label: string; file: TFile; trackers: Tracker[] }[] = [];
+    if (scene) groups.push({ label: "Scene", file: scene, trackers: trackersInSection(await read(scene), sec) });
+    groups.push({ label: "Session", file: session, trackers: trackersInSection(await read(session), sec) });
+    const camp = this.getFile(this.trackersPath(session));
+    if (camp) groups.push({ label: "Campaign", file: camp, trackers: parseTrackers(await read(camp)) });
 
-    const trackers = parseTrackers(await this.app.vault.cachedRead(file));
+    const bar = root.createDiv("rm-trackers");
     const row = bar.createDiv("rm-tracker-row");
-    if (!trackers.length) {
-      row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No trackers yet. Tap the pencil to add some." });
-    }
-    for (const t of trackers) {
-      const box = row.createDiv("rm-tracker");
-      box.createSpan({ cls: "rm-tracker-name", text: t.name });
-      const v = t.value;
-      if (typeof v === "number") {
-        const ctl = box.createDiv("rm-tracker-ctl");
-        const minus = ctl.createEl("button", { attr: { "aria-label": `Decrease ${t.name}` } });
-        setIcon(minus, "minus");
-        ctl.createSpan({ cls: "rm-tracker-value", text: formatValue(v, t.max) });
-        const plus = ctl.createEl("button", { attr: { "aria-label": `Increase ${t.name}` } });
-        setIcon(plus, "plus");
-        const clamp = (n: number) => (t.max !== undefined ? Math.max(0, Math.min(t.max, n)) : n);
-        minus.onclick = () => this.setTracker(file, t, clamp(v - 1));
-        plus.onclick = () => this.setTracker(file, t, clamp(v + 1));
-      } else if (typeof v === "boolean") {
-        const b = box.createEl("button", {
-          cls: "rm-tracker-toggle" + (v ? " is-on" : ""),
-          text: v ? "Yes" : "No",
-          attr: { "aria-pressed": String(v) },
-        });
-        b.onclick = () => this.setTracker(file, t, !v);
-      } else {
-        box.createSpan({ cls: "rm-tracker-value", text: v || "–" });
+    let total = 0;
+    for (const g of groups) {
+      if (!g.trackers.length) continue;
+      total += g.trackers.length;
+      const group = row.createDiv("rm-tile-group");
+      group.createSpan({ cls: "rm-tile-group-label", text: g.label });
+      const tiles = group.createDiv("rm-tile-row");
+      for (const t of g.trackers) {
+        renderTile(tiles, t, { app: this.app, file: g.file, onOpenNote: (f) => this.editNote(f) });
       }
     }
-    const edit = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Edit trackers" } });
-    setIcon(edit, "pencil");
-    edit.onclick = () => this.editNote(file);
+    if (!total) row.createSpan({ cls: "rm-empty rm-tracker-empty", text: "No clocks yet." });
+
+    const add = row.createEl("button", { cls: "rm-tracker-edit", attr: { "aria-label": "Add a clock" } });
+    setIcon(add, "plus");
+    add.onclick = () => new AddClockModal(this.app, this.clockScopes(session, scene)).open();
   }
 }
 
